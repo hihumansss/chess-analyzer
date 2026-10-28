@@ -196,8 +196,12 @@ function App() {
     const next = new Chess()
     try {
       next.loadPgn(pgn)
+      if (game.history().length > 0 || game.fen() !== START_FEN) {
+        const currentLine = exportPgn(game)
+        if (currentLine !== pgn) setVariations((current) => [currentLine, ...current.filter((line) => line !== currentLine)].slice(0, 20))
+      }
       updateGame(next)
-      setMessage('Variation loaded into the main board.')
+      setMessage('Variation loaded into the main board. The previous line remains available in the variation list.')
     } catch {
       setMessage('This saved variation could not be loaded.')
     }
