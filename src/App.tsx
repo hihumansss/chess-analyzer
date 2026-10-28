@@ -149,6 +149,7 @@ function App() {
   const [lessonFeedback, setLessonFeedback] = useState('')
   const [completedLessons, setCompletedLessons] = useState<number[]>([])
   const [libraryQuery, setLibraryQuery] = useState('')
+  const [variations, setVariations] = useState<string[]>([])
   const [savedGames, setSavedGames] = useState<string[]>(() => {
     try {
       const data: unknown = JSON.parse(localStorage.getItem('chesslab-games') ?? '[]')
@@ -181,6 +182,23 @@ function App() {
     setSelectedPly(null)
     setMessage('')
   }, [])
+
+  const preserveLineIfBranching = useCallback(() => {
+    if (selectedPly === null || selectedPly >= game.history().length) return
+    const previousLine = exportPgn(game)
+    setVariations((current) => [previousLine, ...current.filter((line) => line !== previousLine)].slice(0, 20))
+  }, [game, selectedPly])
+
+  const loadVariation = (pgn: string) => {
+    const next = new Chess()
+    try {
+      next.loadPgn(pgn)
+      updateGame(next)
+      setMessage('Variation loaded into the main board.')
+    } catch {
+      setMessage('This saved variation could not be loaded.')
+    }
+  }
 
   const onPuzzlePieceDrop = useCallback(({ sourceSquare, targetSquare }: { sourceSquare: string; targetSquare: string | null }) => {
     if (!targetSquare || puzzleSolved) return false
@@ -222,12 +240,13 @@ function App() {
     const next = cloneGame(displayGame)
     try {
       next.move({ from: sourceSquare, to: targetSquare, promotion: 'q' })
+      preserveLineIfBranching()
       updateGame(next)
       return true
     } catch {
       return false
     }
-  }, [activePanel, computerGameEnabled, displayGame, humanColor, updateGame])
+  }, [activePanel, computerGameEnabled, displayGame, humanColor, preserveLineIfBranching, updateGame])
 
   const newGame = () => {
     lastComputerMoveFen.current = ''
@@ -402,6 +421,7 @@ function App() {
         to: uci.slice(2, 4),
         ...(uci[4] ? { promotion: uci[4] as 'q' | 'r' | 'b' | 'n' } : {}),
       })
+      preserveLineIfBranching()
       updateGame(next)
       setMessage('Played Stockfish’s top move: ' + move.san + '.')
     } catch {
@@ -553,6 +573,11 @@ function App() {
               <div className="panel-heading"><div><span className="panel-icon">◒</span><strong>Evaluation</strong></div><span className={stockfish.status === 'ready' ? 'engine-on-tag' : 'waiting-tag'}>{engineStatusLabel}</span></div>
               <div className="eval-body"><div className="eval-bar" aria-label="Stockfish evaluation from White's perspective"><div className="eval-neutral" style={{ height: evaluationPercent + '%' }} /></div><div className="eval-content"><div className="eval-score">{evaluationText} <small>{mateWhite !== null ? 'MATE' : 'WHITE POV'}</small></div><strong>{stockfish.status === 'ready' ? 'Live Stockfish evaluation' : stockfish.status === 'loading' ? 'Starting Stockfish 19' : stockfish.status === 'error' ? 'Engine unavailable' : 'Engine is stopped'}</strong><p>{engineStatusMessage}</p></div></div>
               <div className="engine-controls"><label htmlFor="depth-range">Search depth <span>{stockfish.status === 'ready' ? engineDepth + ' ply' : 'Start engine to enable'}</span></label><input id="depth-range" type="range" min="1" max="40" value={engineDepth} onChange={(event) => setEngineDepth(Number(event.target.value))} disabled={!engineEnabled || stockfish.status !== 'ready'} /><div className="depth-scale"><span>1</span><span>{engineDepth}</span><span>40</span></div><div className="engine-actions">{!engineEnabled ? <button className="button primary engine-load-button" onClick={() => setEngineEnabled(true)}>Load full Stockfish 19 (~94 MB)</button> : <button className="button secondary engine-load-button" onClick={() => setEngineEnabled(false)}>Stop engine</button>}{activePanel !== 'play' && <button className="button secondary engine-load-button" disabled={stockfish.status !== 'ready' || engineAnalysis.fen !== displayGame.fen() || !engineAnalysis.pvUci} onClick={playBestMove}>Play top move</button>}{activePanel !== 'play' && pvSan && <button className="button secondary engine-load-button" onClick={() => void copyText(pvSan, 'Principal variation')}>Copy principal variation</button>}</div></div>
+            </section>
+
+            <section className="panel variations-panel">
+              <div className="panel-heading"><div><span className="panel-icon">⑂</span><strong>Variations</strong></div><span className="move-count">{variations.length} SAVED</span></div>
+              {variations.length === 0 ? <div className="variation-empty">Select an earlier move, then make a different move to preserve the original line here.</div> : variations.map((pgn, index) => <div className="variation-item" key={pgn}><div><strong>Variation {variations.length - index}</strong><small>{pgn.replace(/\\s+/g, ' ').slice(0, 120)}</small></div><div className="variation-actions"><button className="button secondary small" onClick={() => loadVariation(pgn)}>Load</button><button className="button secondary small" onClick={() => setVariations((current) => current.filter((line) => line !== pgn))}>Delete</button></div></div>)}
             </section>
 
             <section className="panel moves-panel">
