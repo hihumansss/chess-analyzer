@@ -1,4 +1,4 @@
-# ChessLab
+# ChessLab [Not the permanent name, just a placeholder]
 
 ChessLab is a local-first chess study workspace built with React, TypeScript, Vite, `chess.js`, `react-chessboard`, and Stockfish 19.
 
