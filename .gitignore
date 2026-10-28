@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Generated from the stockfish npm package before dev/build; keep engine binaries out of git.
+public/stockfish/
