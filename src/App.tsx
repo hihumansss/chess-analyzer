@@ -350,6 +350,30 @@ function App() {
         ? 'The engine could not start.'
         : 'Start Stockfish to calculate a real best line.'
 
+  const playBestMove = () => {
+    if (stockfish.status !== 'ready' || engineAnalysis.fen !== displayGame.fen() || !engineAnalysis.pvUci) {
+      setMessage('Wait for Stockfish to finish analysing this exact position.')
+      return
+    }
+    const uci = engineAnalysis.pvUci.trim().split(/\\s+/)[0]
+    if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci)) {
+      setMessage('Stockfish has not returned a usable best move yet.')
+      return
+    }
+    const next = cloneGame(displayGame)
+    try {
+      const move = next.move({
+        from: uci.slice(0, 2),
+        to: uci.slice(2, 4),
+        ...(uci[4] ? { promotion: uci[4] as 'q' | 'r' | 'b' | 'n' } : {}),
+      })
+      updateGame(next)
+      setMessage('Played Stockfish’s top move: ' + move.san + '.')
+    } catch {
+      setMessage('The engine move was not legal in the displayed position, so it was not applied.')
+    }
+  }
+
   const status = displayGame.isCheckmate()
     ? `Checkmate — ${displayGame.turn() === 'w' ? 'Black' : 'White'} wins`
     : displayGame.isDraw()
@@ -491,7 +515,7 @@ function App() {
             <section className="panel eval-panel">
               <div className="panel-heading"><div><span className="panel-icon">◒</span><strong>Evaluation</strong></div><span className={stockfish.status === 'ready' ? 'engine-on-tag' : 'waiting-tag'}>{engineStatusLabel}</span></div>
               <div className="eval-body"><div className="eval-bar" aria-label="Stockfish evaluation from White's perspective"><div className="eval-neutral" style={{ height: evaluationPercent + '%' }} /></div><div className="eval-content"><div className="eval-score">{evaluationText} <small>{mateWhite !== null ? 'MATE' : 'WHITE POV'}</small></div><strong>{stockfish.status === 'ready' ? 'Live Stockfish evaluation' : stockfish.status === 'loading' ? 'Starting Stockfish 19' : stockfish.status === 'error' ? 'Engine unavailable' : 'Engine is stopped'}</strong><p>{engineStatusMessage}</p></div></div>
-              <div className="engine-controls"><label htmlFor="depth-range">Search depth <span>{stockfish.status === 'ready' ? engineDepth + ' ply' : 'Start engine to enable'}</span></label><input id="depth-range" type="range" min="1" max="40" value={engineDepth} onChange={(event) => setEngineDepth(Number(event.target.value))} disabled={!engineEnabled || stockfish.status !== 'ready'} /><div className="depth-scale"><span>1</span><span>{engineDepth}</span><span>40</span></div><div className="engine-actions">{!engineEnabled ? <button className="button primary engine-load-button" onClick={() => setEngineEnabled(true)}>Load full Stockfish 19 (~94 MB)</button> : <button className="button secondary engine-load-button" onClick={() => setEngineEnabled(false)}>Stop engine</button>}</div></div>
+              <div className="engine-controls"><label htmlFor="depth-range">Search depth <span>{stockfish.status === 'ready' ? engineDepth + ' ply' : 'Start engine to enable'}</span></label><input id="depth-range" type="range" min="1" max="40" value={engineDepth} onChange={(event) => setEngineDepth(Number(event.target.value))} disabled={!engineEnabled || stockfish.status !== 'ready'} /><div className="depth-scale"><span>1</span><span>{engineDepth}</span><span>40</span></div><div className="engine-actions">{!engineEnabled ? <button className="button primary engine-load-button" onClick={() => setEngineEnabled(true)}>Load full Stockfish 19 (~94 MB)</button> : <button className="button secondary engine-load-button" onClick={() => setEngineEnabled(false)}>Stop engine</button>}{activePanel !== 'play' && <button className="button secondary engine-load-button" disabled={stockfish.status !== 'ready' || engineAnalysis.fen !== displayGame.fen() || !engineAnalysis.pvUci} onClick={playBestMove}>Play top move</button>}{activePanel !== 'play' && pvSan && <button className="button secondary engine-load-button" onClick={() => void copyText(pvSan, 'Principal variation')}>Copy principal variation</button>}</div></div>
             </section>
 
             <section className="panel moves-panel">
