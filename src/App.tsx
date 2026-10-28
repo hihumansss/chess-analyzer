@@ -4,7 +4,7 @@ import { Chessboard, type ChessboardOptions } from 'react-chessboard'
 import { useStockfish } from './useStockfish'
 import './App.css'
 
-type Panel = 'analysis' | 'play' | 'puzzles' | 'learn' | 'library' | 'review'
+type Panel = 'analysis' | 'play' | 'puzzles' | 'learn' | 'library' | 'review' | 'openings'
 type Theme = 'green' | 'blue' | 'brown'
 
 const NAV: { id: Panel; label: string; icon: string }[] = [
@@ -14,6 +14,7 @@ const NAV: { id: Panel; label: string; icon: string }[] = [
   { id: 'learn', label: 'Learn chess', icon: '▤' },
   { id: 'library', label: 'Game library', icon: '▣' },
   { id: 'review', label: 'Game review', icon: '◷' },
+  { id: 'openings', label: 'Opening explorer', icon: '♜' },
 ]
 const FILES = 'abcdefgh'
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
@@ -123,6 +124,30 @@ const LESSONS: Lesson[] = [
   { title: 'Basic endgames: opposition', objective: 'Understand the king opposition in king-and-pawn endings.', explanation: 'In a king-and-pawn ending, king activity matters. Opposition occurs when the kings face each other with one square between them and the player not to move can often gain the key tempo.', example: 'Approaching the enemy king directly may let it hold the pawn; using opposition can force it to give ground.', question: 'What is a key goal when using opposition?', answers: ['Keep your king inactive', 'Force the opposing king to give way', 'Trade your king for a pawn'], correct: 1 },
 ]
 
+type OpeningLine = { name: string; family: string; moves: string[]; description: string }
+const OPENING_LIBRARY: OpeningLine[] = [
+  { name: 'Italian Game', family: 'Open Game', moves: ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4'], description: 'Rapid development and pressure on the f7-square.' },
+  { name: 'Ruy Lopez', family: 'Open Game', moves: ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5'], description: 'Long-term pressure on the knight defending e5.' },
+  { name: 'Scotch Game', family: 'Open Game', moves: ['e4', 'e5', 'Nf3', 'Nc6', 'd4'], description: 'Immediate central challenge and open lines.' },
+  { name: 'Four Knights Game', family: 'Open Game', moves: ['e4', 'e5', 'Nf3', 'Nc6', 'Nc3', 'Nf6'], description: 'Natural development and a balanced centre.' },
+  { name: 'King’s Gambit', family: 'Open Game', moves: ['e4', 'e5', 'f4'], description: 'A sharp pawn sacrifice for central control and attacking chances.' },
+  { name: 'Petrov Defense', family: 'Open Game', moves: ['e4', 'e5', 'Nf3', 'Nf6'], description: 'A direct counterattack against White’s e-pawn.' },
+  { name: 'Sicilian Defense', family: 'Semi-open', moves: ['e4', 'c5'], description: 'An asymmetrical reply that fights for the d4-square.' },
+  { name: 'French Defense', family: 'Semi-open', moves: ['e4', 'e6', 'd4', 'd5'], description: 'A central challenge with a characteristic pawn chain.' },
+  { name: 'Caro-Kann Defense', family: 'Semi-open', moves: ['e4', 'c6', 'd4', 'd5'], description: 'A solid central challenge with a sound pawn structure.' },
+  { name: 'Scandinavian Defense', family: 'Semi-open', moves: ['e4', 'd5'], description: 'Immediate contact with White’s central pawn.' },
+  { name: 'Queen’s Gambit', family: 'Closed Game', moves: ['d4', 'd5', 'c4'], description: 'White challenges the d5-pawn to gain central influence.' },
+  { name: 'Slav Defense', family: 'Closed Game', moves: ['d4', 'd5', 'c4', 'c6'], description: 'Supports d5 while keeping the c8-bishop’s diagonal open.' },
+  { name: 'King’s Indian Defense', family: 'Indian Defense', moves: ['d4', 'Nf6', 'c4', 'g6', 'Nc3', 'Bg7', 'e4', 'd6'], description: 'Black allows a large centre and seeks dynamic counterplay.' },
+  { name: 'Nimzo-Indian Defense', family: 'Indian Defense', moves: ['d4', 'Nf6', 'c4', 'e6', 'Nc3', 'Bb4'], description: 'Black pins the c3-knight and contests central control.' },
+  { name: 'Queen’s Indian Defense', family: 'Indian Defense', moves: ['d4', 'Nf6', 'c4', 'e6', 'Nf3', 'b6'], description: 'Flexible development and control of the long diagonal.' },
+  { name: 'London System', family: 'System Openings', moves: ['d4', 'd5', 'Bf4'], description: 'A repeatable setup based on solid development.' },
+  { name: 'Réti Opening', family: 'Flank Opening', moves: ['Nf3', 'd5', 'c4'], description: 'A flexible flank opening that pressures the centre from the side.' },
+  { name: 'English Opening', family: 'Flank Opening', moves: ['c4'], description: 'White contests d5 and controls central squares from the flank.' },
+  { name: 'Bird Opening', family: 'Flank Opening', moves: ['f4'], description: 'An early claim on e5 with a kingside pawn structure commitment.' },
+  { name: 'King’s Indian Attack', family: 'System Openings', moves: ['Nf3', 'd5', 'g3', 'Nf6', 'Bg2'], description: 'A flexible fianchetto setup often followed by d3 and e4.' },
+]
+
 function App() {
   const [game, setGame] = useState(() => new Chess())
   const [selectedPly, setSelectedPly] = useState<number | null>(null)
@@ -150,6 +175,7 @@ function App() {
   const [lessonFeedback, setLessonFeedback] = useState('')
   const [completedLessons, setCompletedLessons] = useState<number[]>([])
   const [libraryQuery, setLibraryQuery] = useState('')
+  const [openingQuery, setOpeningQuery] = useState('')
   const [reviewPly, setReviewPly] = useState(1)
   const [reviewMarks, setReviewMarks] = useState<Record<string, { classification: string; note: string }>>(() => {
     try {
@@ -314,6 +340,18 @@ function App() {
   const jumpToPly = (ply: number) => {
     setSelectedPly(ply >= game.history().length ? null : ply)
     setMessage(ply === 0 ? 'Showing the starting position.' : `Showing position after ply ${ply}.`)
+  }
+
+  const loadOpeningLine = (line: OpeningLine) => {
+    const next = new Chess()
+    try {
+      for (const san of line.moves) next.move(san)
+      updateGame(next)
+      setActivePanel('analysis')
+      setMessage(`Loaded ${line.name} through ${line.moves.join(' ')}. Continue the line or start Stockfish analysis.`)
+    } catch {
+      setMessage(`The stored ${line.name} line could not be replayed; no position was changed.`)
+    }
   }
 
   const loadFen = () => {
@@ -644,6 +682,12 @@ function App() {
           </aside>
         </div>
         )}
+
+        {activePanel === 'openings' && <section className="opening-workspace">
+          <div className="opening-intro panel"><div className="eyebrow">OPENING REFERENCE</div><h2>Explore opening ideas</h2><p>Search a curated local reference of common chess openings. Choose a line to load its moves onto the main board, continue playing from that position, and optionally analyse it with Stockfish. This is a move-line reference, not a database of master-game statistics.</p><div className="opening-search"><input type="search" value={openingQuery} onChange={(event) => setOpeningQuery(event.target.value)} placeholder="Search by opening, family, or idea…" aria-label="Search openings" /><span>{OPENING_LIBRARY.filter((line) => (line.name + ' ' + line.family + ' ' + line.description).toLowerCase().includes(openingQuery.toLowerCase())).length} lines</span></div></div>
+          <div className="opening-list">{OPENING_LIBRARY.filter((line) => (line.name + ' ' + line.family + ' ' + line.description).toLowerCase().includes(openingQuery.toLowerCase())).map((line) => <article className="opening-card panel" key={line.name}><div className="opening-card-top"><div><span className="opening-family">{line.family}</span><h3>{line.name}</h3></div><button className="button primary small" onClick={() => loadOpeningLine(line)}>Load line</button></div><p>{line.description}</p><div className="opening-san">{line.moves.map((move, index) => <span key={index}>{index % 2 === 0 ? `${Math.floor(index / 2) + 1}.` : ''} {move}</span>)}</div></article>)}</div>
+          {OPENING_LIBRARY.filter((line) => (line.name + ' ' + line.family + ' ' + line.description).toLowerCase().includes(openingQuery.toLowerCase())).length === 0 && <div className="panel opening-empty">No opening lines match that search. Try a name such as Italian, Sicilian, Indian, or English.</div>}
+        </section>}
 
         {activePanel === 'review' && <section className="review-workspace">
           <div className="review-intro panel">

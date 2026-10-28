@@ -39,11 +39,11 @@ The production build checks TypeScript and bundles the application. The test com
 
 ## Game review workspace
 
-The Review page adds move-by-move navigation, editable personal classifications, per-move notes saved in browser storage, and a direct link to Stockfish position analysis. These labels are explicitly user-authored; the app does not present them as engine-derived accuracy scores. Review annotations are local to the browser and are keyed to the current PGN and selected ply.
+The Review page adds move-by-move navigation, editable personal classifications, per-move notes saved in browser storage, and a direct link to Stockfish position analysis. These labels are explicitly user-authored; the app does not present them as engine-derived accuracy scores. Review annotations are local to the browser and are keyed to the current PGN and selected ply. The Opening Explorer adds a searchable local reference of 20 common opening lines, ideas, and families; selecting a line loads its legal SAN sequence onto the main board.
 
 ## Known limits / next milestones
 
-ChessLab is still not a complete replacement for every feature on Chess.com and Lichess. The Review page is a working annotation workflow, not a full automated accuracy report. The puzzle and lesson collections remain small, the opening reference is limited, and browser-level end-to-end testing is still needed. Further milestones include:
+ChessLab is still not a complete replacement for every feature on Chess.com and Lichess. The Review page is a working annotation workflow, not a full automated accuracy report. The puzzle and lesson collections remain small, the opening reference is a curated move-line catalogue rather than a master-game database, and browser-level end-to-end testing is still needed. Further milestones include:
 
 1. A nested variation tree with named lines and clearer branching controls.
 2. Automated game review that analyses every move and compares candidate moves using engine evaluations.
