@@ -39,3 +39,35 @@
 .play-setup-body p { flex-basis: 100%; margin: 0; color: #89958b; font-size: 10px; line-height: 1.6; }
 .play-setup-body p[role="status"] { color: #8a6b30; }
 @media (max-width: 520px) { .play-setup-body { align-items: stretch; flex-direction: column; } .play-choice { width: 100%; } }
+
+
+/* Interactive training pages */
+.feature-page { display: grid; grid-template-columns: minmax(260px, .9fr) minmax(300px, 1fr); gap: 22px; align-items: start; margin: 4px 0 24px; padding: 22px; background: #fff; border: 1px solid #e8ede6; border-radius: 12px; box-shadow: 0 3px 12px #28392b05; }
+.feature-page h2 { margin: 5px 0 10px; color: #28382d; font: 800 clamp(21px, 2vw, 28px)/1.25 Manrope, sans-serif; letter-spacing: -.7px; }
+.feature-page p { color: #77847a; font-size: 12px; line-height: 1.75; }
+.feature-board { width: 100%; max-width: 540px; margin: 0 auto; overflow: hidden; border-radius: 5px; }
+.puzzle-progress { display: inline-block; margin: 5px 0 8px; padding: 6px 8px; border-radius: 5px; background: #f2f6ef; color: #58784e; font-size: 10px; font-weight: 800; }
+.puzzle-hint { padding: 11px 12px; border-left: 3px solid #90b27f; background: #f7faf5; }
+.feature-feedback { margin: 12px 0; padding: 10px 12px; border: 1px solid #e8e3d5; border-radius: 7px; background: #fbf8f0; color: #806b3b !important; font-size: 11px !important; line-height: 1.6 !important; }
+.feature-feedback.success { border-color: #dcebd4; background: #f3f9ef; color: #426e39 !important; }
+.feature-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.learn-page { grid-template-columns: minmax(210px, .7fr) minmax(320px, 1.3fr); }
+.lesson-list { border-right: 1px solid #edf0eb; padding-right: 16px; }
+.lesson-list h2 { font-size: 22px; }
+.lesson-link { display: flex; width: 100%; align-items: center; gap: 10px; padding: 10px; margin-top: 6px; text-align: left; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #627066; font-size: 11px; line-height: 1.5; }
+.lesson-link>span:first-child { display: grid; place-items: center; flex: 0 0 25px; width: 25px; height: 25px; border-radius: 7px; background: #f0f4ed; color: #628354; font-weight: 800; }
+.lesson-link.selected { background: #f2f7ee; border-color: #e0ecd8; color: #365f31; }
+.lesson-content { min-width: 0; }
+.lesson-objective { padding: 10px 12px; border-radius: 7px; background: #f6f8f4; color: #536953 !important; }
+.lesson-example { padding: 12px 14px; border: 1px solid #e8eee4; border-radius: 8px; background: #fbfcfa; }
+.lesson-example strong { font-size: 11px; color: #4d6547; }
+.lesson-example p { margin-bottom: 0; }
+.lesson-quiz { margin-top: 18px; }
+.lesson-quiz h3 { margin: 0 0 7px; color: #394a3d; font-size: 14px; }
+.lesson-answer { display: block; width: 100%; margin-top: 7px; padding: 10px 12px; border: 1px solid #e1e8dd; border-radius: 7px; background: #fff; color: #58665a; text-align: left; font-size: 11px; line-height: 1.5; }
+.lesson-answer:hover, .lesson-answer.chosen { border-color: #9dbd8f; background: #f4f9f0; color: #355d30; }
+.lesson-progress { font-size: 10px !important; }
+.library-empty { padding: 24px; text-align: center; }
+.library-empty strong { color: #455549; font-size: 12px; }
+.library-empty p { margin: 7px auto 14px; max-width: 390px; color: #89958b; font-size: 11px; line-height: 1.7; }
+@media (max-width: 760px) { .feature-page, .learn-page { grid-template-columns: minmax(0, 1fr); padding: 15px; gap: 16px; } .lesson-list { border-right: 0; border-bottom: 1px solid #edf0eb; padding: 0 0 14px; } .feature-board { max-width: 480px; } }
