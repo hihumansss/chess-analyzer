@@ -83,3 +83,14 @@
 .saved-game-actions { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
 .saved-game-actions .button { white-space: nowrap; }
 @media (max-width: 520px) { .saved-game { align-items: flex-start; flex-direction: column; } .saved-game-actions { width: 100%; } }
+
+
+.variations-panel { overflow: hidden; }
+.variation-empty { padding: 14px; color: #8c988e; font-size: 10px; line-height: 1.65; }
+.variation-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 13px; border-bottom: 1px solid #f0f3ee; }
+.variation-item>div:first-child { min-width: 0; }
+.variation-item strong, .variation-item small { display: block; }
+.variation-item strong { color: #4b594e; font-size: 10px; }
+.variation-item small { margin-top: 4px; max-width: 290px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #9aa49b; font-size: 9px; }
+.variation-actions { display: flex; flex: none; gap: 5px; }
+@media (max-width: 520px) { .variation-item { align-items: flex-start; flex-direction: column; } .variation-actions { width: 100%; } }
