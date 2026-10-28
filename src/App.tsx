@@ -150,6 +150,7 @@ function App() {
   const [completedLessons, setCompletedLessons] = useState<number[]>([])
   const [libraryQuery, setLibraryQuery] = useState('')
   const [variations, setVariations] = useState<string[]>([])
+  const [redoStack, setRedoStack] = useState<string[]>([])
   const [savedGames, setSavedGames] = useState<string[]>(() => {
     try {
       const data: unknown = JSON.parse(localStorage.getItem('chesslab-games') ?? '[]')
@@ -178,9 +179,10 @@ function App() {
     return pairs
   }, [game])
 
-  const updateGame = useCallback((next: Chess) => {
+  const updateGame = useCallback((next: Chess, clearRedo = true) => {
     setGame(next)
     setSelectedPly(null)
+    if (clearRedo) setRedoStack([])
     setMessage('')
   }, [])
 
@@ -270,8 +272,27 @@ function App() {
       setMessage('There are no moves to undo.')
       return
     }
-    updateGame(next)
+    setRedoStack((current) => [...current, exportPgn(game)].slice(-100))
+    updateGame(next, false)
     setMessage('Last move undone.')
+  }
+
+  const redoMove = () => {
+    const pgn = redoStack.at(-1)
+    if (!pgn) {
+      setMessage('There are no moves to redo.')
+      return
+    }
+    const next = new Chess()
+    try {
+      next.loadPgn(pgn)
+      setRedoStack((current) => current.slice(0, -1))
+      updateGame(next, false)
+      setMessage('Move redone.')
+    } catch {
+      setRedoStack([])
+      setMessage('The redo position could not be restored.')
+    }
   }
 
   // Browsing the move list changes the displayed position without deleting later moves.
@@ -555,7 +576,7 @@ function App() {
               </div>
               <div className="board-toolbar">
                 <button title="Flip board" onClick={() => setOrientation((value) => value === 'white' ? 'black' : 'white')}>↻ <span>Flip board</span></button>
-                <button title="Undo move" onClick={undoMove}>↶ <span>Undo</span></button>
+                <button title="Undo move" onClick={undoMove}>↶ <span>Undo</span></button><button title="Redo move" onClick={redoMove} disabled={redoStack.length === 0}>↷ <span>Redo</span></button>
                 <button title="Reset game" onClick={newGame}>⟲ <span>Reset</span></button>
                 <span className="toolbar-spacer" />
                 <button title="Import PGN" onClick={() => { setPgnInput(''); setShowPgn(true) }}>⇧ <span>Import PGN</span></button>
