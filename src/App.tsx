@@ -73,6 +73,29 @@ function pvToSan(fen: string, variation: string): string {
   return san.join(' ')
 }
 
+function identifyOpening(position: Chess): string {
+  const moves = position.history()
+  const openings: { moves: string[]; name: string }[] = [
+    { moves: ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5'], name: 'Ruy Lopez (Spanish Opening)' },
+    { moves: ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4'], name: 'Italian Game' },
+    { moves: ['e4', 'e5', 'Nf3', 'Nc6', 'd4'], name: 'Scotch Game' },
+    { moves: ['d4', 'Nf6', 'c4', 'e6', 'Nc3', 'Bb4'], name: 'Nimzo-Indian Defense' },
+    { moves: ['d4', 'Nf6', 'c4', 'g6', 'Nc3', 'Bg7', 'e4', 'd6'], name: 'King’s Indian Defense' },
+    { moves: ['d4', 'd5', 'c4'], name: 'Queen’s Gambit' },
+    { moves: ['e4', 'c5'], name: 'Sicilian Defense' },
+    { moves: ['e4', 'e6'], name: 'French Defense' },
+    { moves: ['e4', 'c6'], name: 'Caro-Kann Defense' },
+    { moves: ['e4', 'e5'], name: 'Open Game' },
+    { moves: ['d4', 'd5'], name: 'Queen’s Pawn Game' },
+    { moves: ['e4'], name: 'King’s Pawn Opening' },
+    { moves: ['d4'], name: 'Queen’s Pawn Opening' },
+  ]
+  for (const opening of openings) {
+    if (moves.length >= opening.moves.length && opening.moves.every((move, index) => moves[index] === move)) return opening.name
+  }
+  return moves.length === 0 ? 'Starting position' : 'Opening not identified in the built-in reference set'
+}
+
 type Puzzle = { title: string; fen: string; solutionUci: string; hint: string; explanation: string }
 
 const PUZZLES: Puzzle[] = [
@@ -374,6 +397,8 @@ function App() {
     }
   }
 
+  const openingName = identifyOpening(displayGame)
+
   const status = displayGame.isCheckmate()
     ? `Checkmate — ${displayGame.turn() === 'w' ? 'Black' : 'White'} wins`
     : displayGame.isDraw()
@@ -524,7 +549,7 @@ function App() {
               <div className="move-footer"><span>{displayGame.isGameOver() ? 'Game finished' : selectedPly !== null ? 'Browsing game history' : 'Local board · legal moves'}</span><button onClick={() => void copyText(exportPgn(game), 'PGN')}>Copy PGN ↗</button></div>
             </section>
 
-            <section className="panel insights-panel"><div className="panel-heading"><div><span className="panel-icon">✧</span><strong>Position insights</strong></div></div><div className="insight-row"><span className="insight-symbol">♟</span><div><strong>Board state</strong><p>{displayGame.isCheckmate() ? 'Checkmate position' : displayGame.isCheck() ? 'The side to move is in check' : displayGame.isDraw() ? 'Draw position' : 'Legal position · ready to study'}</p></div></div><div className="insight-row"><span className="insight-symbol">↗</span><div><strong>Best move and variations</strong><p>{enginePvMessage}</p></div></div></section>
+            <section className="panel insights-panel"><div className="panel-heading"><div><span className="panel-icon">✧</span><strong>Position insights</strong></div></div><div className="insight-row"><span className="insight-symbol">♟</span><div><strong>Board state</strong><p>{displayGame.isCheckmate() ? 'Checkmate position' : displayGame.isCheck() ? 'The side to move is in check' : displayGame.isDraw() ? 'Draw position' : 'Legal position · ready to study'}</p></div></div><div className="insight-row"><span className="insight-symbol">⌂</span><div><strong>Opening reference</strong><p>{openingName}</p></div></div><div className="insight-row"><span className="insight-symbol">↗</span><div><strong>Best move and variations</strong><p>{enginePvMessage}</p></div></div></section>
           </aside>
         </div>
         )}
