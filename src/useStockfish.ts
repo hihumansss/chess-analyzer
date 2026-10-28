@@ -7,6 +7,7 @@ export interface StockfishAnalysis {
   scoreCp: number | null
   mate: number | null
   pvUci: string
+  fen: string
 }
 
 const EMPTY_ANALYSIS: StockfishAnalysis = {
@@ -14,11 +15,13 @@ const EMPTY_ANALYSIS: StockfishAnalysis = {
   scoreCp: null,
   mate: null,
   pvUci: '',
+  fen: '',
 }
 
 export function useStockfish(fen: string, enabled: boolean, depth: number) {
   const workerRef = useRef<Worker | null>(null)
   const readyRef = useRef(false)
+  const positionFenRef = useRef('')
   const [status, setStatus] = useState<StockfishStatus>('off')
   const [analysis, setAnalysis] = useState<StockfishAnalysis>(EMPTY_ANALYSIS)
 
@@ -72,6 +75,7 @@ export function useStockfish(fen: string, enabled: boolean, depth: number) {
           scoreCp: scoreMatch[1] === 'cp' ? nextScore : null,
           mate: scoreMatch[1] === 'mate' ? nextScore : null,
           pvUci: pvMatch[1].trim(),
+          fen: positionFenRef.current,
         }
       })
     }
@@ -92,6 +96,7 @@ export function useStockfish(fen: string, enabled: boolean, depth: number) {
     setAnalysis(EMPTY_ANALYSIS)
     worker.postMessage('stop')
     worker.postMessage('ucinewgame')
+    positionFenRef.current = fen
     worker.postMessage('position fen ' + fen)
     worker.postMessage('go depth ' + depth)
   }, [depth, enabled, fen, status])
