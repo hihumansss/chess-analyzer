@@ -229,7 +229,7 @@ function App() {
   const evaluationPercent = scoreWhiteCp === null
     ? 50
     : Math.max(6, Math.min(94, 50 + scoreWhiteCp / 100 * 8))
-  const pvSan = engineAnalysis.pvUci ? pvToSan(game.fen(), engineAnalysis.pvUci) : ''
+  const pvSan = engineAnalysis.pvUci ? pvToSan(displayGame.fen(), engineAnalysis.pvUci) : ''
   const engineStatusLabel = stockfish.status === 'ready'
     ? 'STOCKFISH 19'
     : stockfish.status === 'loading'
@@ -272,7 +272,7 @@ function App() {
     squareStyles[currentMove.from] = { background: 'rgba(246, 246, 105, 0.42)' }
     squareStyles[currentMove.to] = { background: 'rgba(246, 246, 105, 0.58)' }
   }
-  if (game.isCheck() && kingSquare) {
+  if (displayGame.isCheck() && kingSquare) {
     squareStyles[kingSquare] = { background: 'radial-gradient(circle, rgba(255, 90, 90, .88) 0%, rgba(255, 90, 90, .55) 38%, transparent 72%)' }
   }
 
@@ -354,7 +354,7 @@ function App() {
             </div>
             <div className="under-board">
               <div className="under-title"><span className="mini-icon">⌘</span><div><strong>Position tools</strong><small>Import, export and save your work</small></div></div>
-              <div className="tool-buttons"><button onClick={() => { setFenInput(game.fen()); setShowFen(true) }}>Copy / load FEN</button><button onClick={saveGame}>Save game</button><button onClick={() => setShowLastMove((value) => !value)}>{showLastMove ? 'Hide' : 'Show'} last move</button></div>
+              <div className="tool-buttons"><button onClick={() => { setFenInput(displayGame.fen()); setShowFen(true) }}>Copy / load FEN</button><button onClick={saveGame}>Save game</button><button onClick={() => setShowLastMove((value) => !value)}>{showLastMove ? 'Hide' : 'Show'} last move</button></div>
             </div>
             {message && <div className="feedback" role="status"><span>ⓘ</span>{message}<button onClick={() => setMessage('')} aria-label="Dismiss message">×</button></div>}
           </section>
