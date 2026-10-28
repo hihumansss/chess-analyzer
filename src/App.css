@@ -71,3 +71,8 @@
 .library-empty strong { color: #455549; font-size: 12px; }
 .library-empty p { margin: 7px auto 14px; max-width: 390px; color: #89958b; font-size: 11px; line-height: 1.7; }
 @media (max-width: 760px) { .feature-page, .learn-page { grid-template-columns: minmax(0, 1fr); padding: 15px; gap: 16px; } .lesson-list { border-right: 0; border-bottom: 1px solid #edf0eb; padding: 0 0 14px; } .feature-board { max-width: 480px; } }
+
+
+/* Make the evaluation bar encode White's share from the bottom upward. */
+.eval-bar { display: flex; flex-direction: column; justify-content: flex-end; background: #303a32; }
+.eval-neutral { flex: 0 0 auto; background: #f4f5ef; }
