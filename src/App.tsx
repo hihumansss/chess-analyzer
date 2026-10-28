@@ -549,9 +549,9 @@ function App() {
             <div className="board-card">
               <div className="board-card-head"><div className="opponent"><div className="piece-avatar black-avatar">♟</div><div><strong>{activePanel === 'play' && computerGameEnabled ? 'Stockfish 19' : 'Board position'}</strong><small>{activePanel === 'play' && computerGameEnabled ? (humanColor === 'white' ? 'You are White' : 'You are Black') : 'Position study'}</small></div></div><span className="rating-tag">{activePanel === 'play' && computerGameEnabled ? 'VS COMPUTER' : 'ANALYSIS'}</span></div>
               <div className="board-wrap">
-                <div className="player-label top-player"><span className="player-chip dark-chip">♟</span><span>Black</span><span className="player-meta">Board orientation: {orientation}</span></div>
+                <div className="player-label top-player"><span className={orientation === 'white' ? 'player-chip dark-chip' : 'player-chip light-chip'}>{orientation === 'white' ? '♟' : '♙'}</span><span>{orientation === 'white' ? 'Black' : 'White'}</span><span className="player-meta">Board orientation: {orientation}</span></div>
                 <div className="chessboard-container"><Chessboard options={boardOptions} /></div>
-                <div className="player-label bottom-player"><span className="player-chip light-chip">♙</span><span>White</span><span className="player-meta">{status}</span></div>
+                <div className="player-label bottom-player"><span className={orientation === 'white' ? 'player-chip light-chip' : 'player-chip dark-chip'}>{orientation === 'white' ? '♙' : '♟'}</span><span>{orientation === 'white' ? 'White' : 'Black'}</span><span className="player-meta">{status}</span></div>
               </div>
               <div className="board-toolbar">
                 <button title="Flip board" onClick={() => setOrientation((value) => value === 'white' ? 'black' : 'white')}>↻ <span>Flip board</span></button>
