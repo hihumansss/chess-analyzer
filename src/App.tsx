@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Chess } from 'chess.js'
 import { Chessboard, type ChessboardOptions } from 'react-chessboard'
 import { useStockfish } from './useStockfish'
@@ -87,6 +87,9 @@ function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [engineEnabled, setEngineEnabled] = useState(false)
   const [engineDepth, setEngineDepth] = useState(20)
+  const [computerGameEnabled, setComputerGameEnabled] = useState(false)
+  const [humanColor, setHumanColor] = useState<'white' | 'black'>('white')
+  const lastComputerMoveFen = useRef('')
   const [showLastMove, setShowLastMove] = useState(true)
   const [savedGames, setSavedGames] = useState<string[]>(() => {
     try {
@@ -123,6 +126,7 @@ function App() {
 
   const onPieceDrop = useCallback(({ sourceSquare, targetSquare }: { sourceSquare: string; targetSquare: string | null }) => {
     if (!targetSquare) return false
+    if (activePanel === 'play' && computerGameEnabled && displayGame.turn() !== (humanColor === 'white' ? 'w' : 'b')) return false
     const next = cloneGame(displayGame)
     try {
       next.move({ from: sourceSquare, to: targetSquare, promotion: 'q' })
@@ -131,9 +135,10 @@ function App() {
     } catch {
       return false
     }
-  }, [displayGame, updateGame])
+  }, [activePanel, computerGameEnabled, displayGame, humanColor, updateGame])
 
   const newGame = () => {
+    lastComputerMoveFen.current = ''
     updateGame(new Chess())
     setMessage('New game started.')
   }
@@ -215,6 +220,31 @@ function App() {
 
   const stockfish = useStockfish(displayGame.fen(), engineEnabled, engineDepth)
   const engineAnalysis = stockfish.analysis
+
+  useEffect(() => {
+    if (activePanel !== 'play' || !computerGameEnabled || !engineEnabled || stockfish.status !== 'ready') return
+    if (selectedPly !== null || displayGame.isGameOver()) return
+    const computerColor = humanColor === 'white' ? 'b' : 'w'
+    if (displayGame.turn() !== computerColor) return
+    if (engineAnalysis.fen !== displayGame.fen() || !engineAnalysis.pvUci) return
+    if (lastComputerMoveFen.current === displayGame.fen()) return
+
+    const uci = engineAnalysis.pvUci.trim().split(/\\s+/)[0]
+    if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci)) return
+    const next = cloneGame(displayGame)
+    try {
+      const move = next.move({
+        from: uci.slice(0, 2),
+        to: uci.slice(2, 4),
+        ...(uci[4] ? { promotion: uci[4] as 'q' | 'r' | 'b' | 'n' } : {}),
+      })
+      lastComputerMoveFen.current = displayGame.fen()
+      updateGame(next)
+      setMessage('Stockfish played ' + move.san + '.')
+    } catch {
+      setMessage('Stockfish returned a move that was not legal in the current position. The move was not applied.')
+    }
+  }, [activePanel, computerGameEnabled, displayGame, engineAnalysis.fen, engineAnalysis.pvUci, engineEnabled, humanColor, selectedPly, stockfish.status, updateGame])
   const scoreWhiteCp = engineAnalysis.scoreCp === null
     ? null
     : displayGame.turn() === 'w' ? engineAnalysis.scoreCp : -engineAnalysis.scoreCp
@@ -327,17 +357,30 @@ function App() {
           <div className="heading-actions"><button className="button secondary" onClick={() => { setFenInput(displayGame.fen()); setShowFen(true) }}>Import FEN</button><button className="button primary" onClick={newGame}>＋ New game</button></div>
         </section>
 
-        {activePanel !== 'analysis' && (
+        {activePanel !== 'analysis' && activePanel !== 'play' && (
           <div className="feature-notice">
             <span className="notice-icon">✦</span><div><strong>{NAV.find((item) => item.id === activePanel)?.label} is being built</strong><p>This section is not pretending to be complete. For now, use the working analysis board and saved-game tools. The next milestones will add this section's real functionality.</p></div>
             <button className="button secondary small" onClick={() => setActivePanel('analysis')}>Open analysis</button>
           </div>
         )}
 
+        {activePanel === 'play' && (
+          <section className="panel play-setup">
+            <div className="panel-heading"><div><span className="panel-icon">♟</span><strong>Play against Stockfish 19</strong></div><span className="move-count">SINGLE-PLAYER</span></div>
+            <div className="play-setup-body">
+              <div className="play-choice"><label htmlFor="human-colour">Your colour</label><select id="human-colour" value={humanColor} onChange={(event) => { setHumanColor(event.target.value as 'white' | 'black'); lastComputerMoveFen.current = '' }}><option value="white">White — move first</option><option value="black">Black — Stockfish moves first</option></select></div>
+              <button className="button primary" onClick={() => { lastComputerMoveFen.current = ''; setComputerGameEnabled(true); setEngineEnabled(true); updateGame(new Chess()); setMessage('Computer game started. Stockfish is loading; its first move will be made when analysis is ready.') }}>Start / restart game</button>
+              {computerGameEnabled && <button className="button secondary" onClick={() => { setComputerGameEnabled(false); setMessage('Computer game paused. The board is now in analysis mode.') }}>Pause computer game</button>}
+              <p>The full Stockfish engine is required. Its first browser load is about 94 MB and may take time. No multiplayer is included.</p>
+              {computerGameEnabled && stockfish.status !== 'ready' && <p role="status">Engine status: {stockfish.status === 'loading' ? 'loading Stockfish 19…' : stockfish.status === 'error' ? 'failed to start; stop and retry the engine' : 'waiting to start'}.</p>}
+            </div>
+          </section>
+        )}
+
         <div className="workspace-grid">
           <section className="board-column">
             <div className="board-card">
-              <div className="board-card-head"><div className="opponent"><div className="piece-avatar black-avatar">♟</div><div><strong>Black pieces</strong><small>Position study</small></div></div><span className="rating-tag">ANALYSIS</span></div>
+              <div className="board-card-head"><div className="opponent"><div className="piece-avatar black-avatar">♟</div><div><strong>{activePanel === 'play' && computerGameEnabled ? 'Stockfish 19' : 'Board position'}</strong><small>{activePanel === 'play' && computerGameEnabled ? (humanColor === 'white' ? 'You are White' : 'You are Black') : 'Position study'}</small></div></div><span className="rating-tag">{activePanel === 'play' && computerGameEnabled ? 'VS COMPUTER' : 'ANALYSIS'}</span></div>
               <div className="board-wrap">
                 <div className="player-label top-player"><span className="player-chip dark-chip">♟</span><span>Black</span><span className="player-meta">Board orientation: {orientation}</span></div>
                 <div className="chessboard-container"><Chessboard options={boardOptions} /></div>
