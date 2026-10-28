@@ -139,6 +139,16 @@ function App() {
     setMessage('Last move undone.')
   }
 
+  // Move-list entries are navigation controls, not just labels.
+  // Replaying from the current game's recorded history also works for imported PGNs
+  // and positions that started from a custom FEN.
+  const jumpToPly = (ply: number) => {
+    const next = cloneGame(game)
+    while (next.history().length > ply) next.undo()
+    updateGame(next)
+    setMessage(ply === 0 ? 'Showing the starting position.' : `Showing position after ply ${ply}.`)
+  }
+
   const loadFen = () => {
     if (!fenInput.trim()) {
       setMessage('Paste a FEN position first.')
@@ -343,7 +353,7 @@ function App() {
 
             <section className="panel moves-panel">
               <div className="panel-heading"><div><span className="panel-icon">☷</span><strong>Move history</strong></div><span className="move-count">{history.length} {history.length === 1 ? 'MOVE' : 'MOVES'}</span></div>
-              {movePairs.length === 0 ? <div className="empty-moves"><div className="empty-board">♞</div><strong>Your game starts here</strong><p>Make a move on the board. Every legal move will appear here.</p></div> : <div className="move-table"><div className="move-header"><span>#</span><span>WHITE</span><span>BLACK</span></div>{movePairs.map((move) => <div className="move-row" key={move.number}><span className="move-number">{move.number}.</span><button onClick={() => setMessage(`Move ${move.number}: ${move.white}`)}>{move.white}</button><button onClick={() => move.black && setMessage(`Move ${move.number}... ${move.black}`)}>{move.black ?? ''}</button></div>)}</div>}
+              {movePairs.length === 0 ? <div className="empty-moves"><div className="empty-board">♞</div><strong>Your game starts here</strong><p>Make a move on the board. Every legal move will appear here.</p></div> : <div className="move-table"><div className="move-header"><span>#</span><span>WHITE</span><span>BLACK</span></div>{movePairs.map((move) => <div className="move-row" key={move.number}><span className="move-number">{move.number}.</span><button title={`Jump to ${move.number}. ${move.white}`} onClick={() => jumpToPly((move.number - 1) * 2 + 1)}>{move.white}</button><button title={move.black ? `Jump to ${move.number}... ${move.black}` : 'Black has not moved'} disabled={!move.black} onClick={() => jumpToPly(move.number * 2)}>{move.black ?? ''}</button></div>)}</div>}
               <div className="move-footer"><span>{game.isGameOver() ? 'Game finished' : 'Local board · legal moves'}</span><button onClick={() => void copyText(exportPgn(game), 'PGN')}>Copy PGN ↗</button></div>
             </section>
 
