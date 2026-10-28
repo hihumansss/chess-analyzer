@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, type CSSProperties } from 'react'
-import { Chess, type Square } from 'chess.js'
+import { Chess } from 'chess.js'
 import { Chessboard, type ChessboardOptions } from 'react-chessboard'
 import './App.css'
 
