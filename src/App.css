@@ -76,3 +76,10 @@
 /* Make the evaluation bar encode White's share from the bottom upward. */
 .eval-bar { display: flex; flex-direction: column; justify-content: flex-end; background: #303a32; }
 .eval-neutral { flex: 0 0 auto; background: #f4f5ef; }
+
+
+.library-controls { padding: 12px 14px; border-bottom: 1px solid #f0f3ee; }
+.library-controls input { width: 100%; max-width: 460px; padding: 9px 11px; border: 1px solid #dfe6dd; border-radius: 7px; background: #fbfcfa; color: #435248; font-size: 11px; }
+.saved-game-actions { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
+.saved-game-actions .button { white-space: nowrap; }
+@media (max-width: 520px) { .saved-game { align-items: flex-start; flex-direction: column; } .saved-game-actions { width: 100%; } }
