@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, type CSSProperties } from 'react'
 import { Chess, type Square } from 'chess.js'
-import { Chessboard } from 'react-chessboard'
+import { Chessboard, type ChessboardOptions } from 'react-chessboard'
 import './App.css'
 
 type Panel = 'analysis' | 'play' | 'puzzles' | 'learn' | 'library'
@@ -13,19 +13,46 @@ const NAV: { id: Panel; label: string; icon: string }[] = [
   { id: 'learn', label: 'Learn chess', icon: '▤' },
   { id: 'library', label: 'Game library', icon: '▣' },
 ]
-const START_FEN = 'start'
+const FILES = 'abcdefgh'
+const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
 function safeGameFromFen(fen: string): Chess | null {
   try {
-    return new Chess(fen.trim())
+    const next = new Chess(fen.trim())
+    if (next.fen() !== START_FEN) {
+      next.header('Event', 'ChessLab Position', 'SetUp', '1', 'FEN', next.fen())
+    }
+    return next
   } catch {
     return null
   }
 }
 
+function cloneGame(source: Chess): Chess {
+  const moves = source.history({ verbose: true })
+  const headers = source.header()
+  const initialFen = headers.FEN ?? (moves.length === 0 && source.fen() !== START_FEN ? source.fen() : undefined)
+  const next = initialFen ? new Chess(initialFen) : new Chess()
+  if (initialFen) {
+    next.header('Event', headers.Event ?? 'ChessLab Position', 'SetUp', '1', 'FEN', initialFen)
+  }
+  for (const move of moves) {
+    next.move({ from: move.from, to: move.to, promotion: move.promotion })
+  }
+  return next
+}
+
+function exportPgn(position: Chess): string {
+  const pgn = position.pgn()
+  if (pgn.trim()) return pgn
+  if (position.fen() !== START_FEN) {
+    return `[Event "ChessLab Position"]\n[SetUp "1"]\n[FEN "${position.fen()}"]\n\n*`
+  }
+  return '*'
+}
+
 function App() {
   const [game, setGame] = useState(() => new Chess())
-  const [historyIndex, setHistoryIndex] = useState(-1)
   const [activePanel, setActivePanel] = useState<Panel>('analysis')
   const [orientation, setOrientation] = useState<'white' | 'black'>('white')
   const [boardTheme, setBoardTheme] = useState<Theme>('green')
@@ -35,36 +62,37 @@ function App() {
   const [showFen, setShowFen] = useState(false)
   const [showPgn, setShowPgn] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [showLegalMoves, setShowLegalMoves] = useState(true)
-  const [lastMove, setLastMove] = useState<[Square, Square] | null>(null)
+  const [showLastMove, setShowLastMove] = useState(true)
   const [savedGames, setSavedGames] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem('chesslab-games') ?? '[]') as string[] } catch { return [] }
+    try {
+      const data: unknown = JSON.parse(localStorage.getItem('chesslab-games') ?? '[]')
+      return Array.isArray(data) && data.every((item) => typeof item === 'string') ? data : []
+    } catch {
+      return []
+    }
   })
+
   const history = game.history({ verbose: true })
   const currentMove = history.at(-1)
   const movePairs = useMemo(() => {
     const pairs: { number: number; white?: string; black?: string }[] = []
-    for (let i = 0; i < history.length; i += 2) {
-      pairs.push({ number: i / 2 + 1, white: history[i]?.san, black: history[i + 1]?.san })
+    const moves = game.history()
+    for (let i = 0; i < moves.length; i += 2) {
+      pairs.push({ number: i / 2 + 1, white: moves[i], black: moves[i + 1] })
     }
     return pairs
-  }, [history.length, game])
+  }, [game])
 
   const updateGame = useCallback((next: Chess) => {
     setGame(next)
-    setHistoryIndex(next.history().length - 1)
-    const verbose = next.history({ verbose: true })
-    const last = verbose.at(-1)
-    setLastMove(last ? [last.from as Square, last.to as Square] : null)
     setMessage('')
   }, [])
 
-  const onPieceDrop = useCallback(({ sourceSquare, targetSquare }: { sourceSquare: string; targetSquare: string }) => {
+  const onPieceDrop = useCallback(({ sourceSquare, targetSquare }: { sourceSquare: string; targetSquare: string | null }) => {
     if (!targetSquare) return false
-    const next = new Chess(game.fen())
+    const next = cloneGame(game)
     try {
-      const move = next.move({ from: sourceSquare, to: targetSquare, promotion: 'q' })
-      if (!move) return false
+      next.move({ from: sourceSquare, to: targetSquare, promotion: 'q' })
       updateGame(next)
       return true
     } catch {
@@ -78,18 +106,28 @@ function App() {
   }
 
   const undoMove = () => {
-    const next = new Chess(game.fen())
-    const undone = next.undo()
-    if (!undone) { setMessage('There are no moves to undo.'); return }
+    const next = cloneGame(game)
+    if (!next.undo()) {
+      setMessage('There are no moves to undo.')
+      return
+    }
     updateGame(next)
     setMessage('Last move undone.')
   }
 
   const loadFen = () => {
+    if (!fenInput.trim()) {
+      setMessage('Paste a FEN position first.')
+      return
+    }
     const next = safeGameFromFen(fenInput)
-    if (!next) { setMessage('That FEN is invalid. Check the position and try again.'); return }
+    if (!next) {
+      setMessage('That FEN is invalid. Check the position and try again.')
+      return
+    }
     updateGame(next)
     setShowFen(false)
+    setFenInput('')
     setMessage('FEN position loaded.')
   }
 
@@ -115,11 +153,15 @@ function App() {
   }
 
   const saveGame = () => {
-    const pgn = game.pgn() || '[Event "ChessLab saved position"]\n\n*'
+    const pgn = exportPgn(game)
     const next = [pgn, ...savedGames.filter((item) => item !== pgn)].slice(0, 30)
     setSavedGames(next)
-    localStorage.setItem('chesslab-games', JSON.stringify(next))
-    setMessage('Game saved in this browser.')
+    try {
+      localStorage.setItem('chesslab-games', JSON.stringify(next))
+      setMessage('Game saved in this browser.')
+    } catch {
+      setMessage('Browser storage is unavailable. The game could not be saved.')
+    }
   }
 
   const status = game.isCheckmate()
@@ -130,33 +172,46 @@ function App() {
         ? `${game.turn() === 'w' ? 'White' : 'Black'} to move · Check`
         : `${game.turn() === 'w' ? 'White' : 'Black'} to move`
 
-  const boardOptions = {
+  const board = game.board()
+  const kingSquare = board.flatMap((rank, row) =>
+    rank.map((piece, column) => piece?.type === 'k' && piece.color === game.turn()
+      ? `${FILES[column]}${8 - row}`
+      : ''),
+  ).find((square) => square.length > 0)
+
+  const squareStyles: Record<string, CSSProperties> = {}
+  if (showLastMove && currentMove) {
+    squareStyles[currentMove.from] = { background: 'rgba(246, 246, 105, 0.42)' }
+    squareStyles[currentMove.to] = { background: 'rgba(246, 246, 105, 0.58)' }
+  }
+  if (game.isCheck() && kingSquare) {
+    squareStyles[kingSquare] = { background: 'radial-gradient(circle, rgba(255, 90, 90, .88) 0%, rgba(255, 90, 90, .55) 38%, transparent 72%)' }
+  }
+
+  const boardOptions: ChessboardOptions = {
     position: game.fen(),
     boardOrientation: orientation,
     allowDragging: !game.isGameOver(),
-    squareStyles: {
-      ...(showLegalMoves && currentMove ? {
-        [currentMove.from]: { background: 'rgba(246, 246, 105, 0.42)' },
-        [currentMove.to]: { background: 'rgba(246, 246, 105, 0.58)' },
-      } : {}),
-      ...(game.isCheck() ? Object.fromEntries(
-        Object.entries(game.board().flat().filter(Boolean).map((piece) => piece?.square ?? '')).filter(([square]) => {
-          const p = game.get(square as Square)
-          return p?.type === 'k' && p.color === game.turn()
-        }).map(([, square]) => [square, { background: 'radial-gradient(circle, #ff6464 0%, #ff6464 35%, transparent 70%)' }]),
-      ) : {}),
-    },
-    darkSquareStyle: boardTheme === 'green' ? { backgroundColor: '#779952' } : boardTheme === 'blue' ? { backgroundColor: '#6f95b5' } : { backgroundColor: '#b58863' },
-    lightSquareStyle: boardTheme === 'green' ? { backgroundColor: '#ebecd0' } : boardTheme === 'blue' ? { backgroundColor: '#e4edf5' } : { backgroundColor: '#f0d9b5' },
+    squareStyles,
+    darkSquareStyle: boardTheme === 'green'
+      ? { backgroundColor: '#779952' }
+      : boardTheme === 'blue'
+        ? { backgroundColor: '#6f95b5' }
+        : { backgroundColor: '#b58863' },
+    lightSquareStyle: boardTheme === 'green'
+      ? { backgroundColor: '#ebecd0' }
+      : boardTheme === 'blue'
+        ? { backgroundColor: '#e4edf5' }
+        : { backgroundColor: '#f0d9b5' },
     onPieceDrop,
-    arePiecesDraggable: !game.isGameOver(),
   }
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setActivePanel('analysis') }}>
-          <span className="brand-mark">♞</span><span>Chess<span className="brand-light">Lab</span><small>YOUR CHESS WORKSPACE</small></span>
+          <span className="brand-mark">♞</span>
+          <span>Chess<span className="brand-light">Lab</span><small>YOUR CHESS WORKSPACE</small></span>
         </a>
         <div className="side-label">WORKSPACE</div>
         <nav className="main-nav" aria-label="Main navigation">
@@ -181,7 +236,7 @@ function App() {
 
         <section className="page-heading">
           <div><div className="eyebrow">CHESS ANALYSIS STUDIO</div><h1>{activePanel === 'analysis' ? 'Analysis board' : NAV.find((item) => item.id === activePanel)?.label}</h1><p>Study positions, explore variations, and review your games.</p></div>
-          <div className="heading-actions"><button className="button secondary" onClick={() => setShowFen(true)}>Import FEN</button><button className="button primary" onClick={newGame}>＋ New game</button></div>
+          <div className="heading-actions"><button className="button secondary" onClick={() => { setFenInput(game.fen()); setShowFen(true) }}>Import FEN</button><button className="button primary" onClick={newGame}>＋ New game</button></div>
         </section>
 
         {activePanel !== 'analysis' && (
@@ -196,10 +251,8 @@ function App() {
             <div className="board-card">
               <div className="board-card-head"><div className="opponent"><div className="piece-avatar black-avatar">♟</div><div><strong>Black pieces</strong><small>Position study</small></div></div><span className="rating-tag">ANALYSIS</span></div>
               <div className="board-wrap">
-                <div className="player-label top-player"><span className="player-chip dark-chip">♟</span><span>Black</span><span className="player-meta">To move after White</span></div>
-                <div className="chessboard-container">
-                  <Chessboard options={boardOptions} />
-                </div>
+                <div className="player-label top-player"><span className="player-chip dark-chip">♟</span><span>Black</span><span className="player-meta">Board orientation: {orientation}</span></div>
+                <div className="chessboard-container"><Chessboard options={boardOptions} /></div>
                 <div className="player-label bottom-player"><span className="player-chip light-chip">♙</span><span>White</span><span className="player-meta">{status}</span></div>
               </div>
               <div className="board-toolbar">
@@ -208,12 +261,12 @@ function App() {
                 <button title="Reset game" onClick={newGame}>⟲ <span>Reset</span></button>
                 <span className="toolbar-spacer" />
                 <button title="Import PGN" onClick={() => { setPgnInput(''); setShowPgn(true) }}>⇧ <span>Import PGN</span></button>
-                <button title="Export PGN" onClick={() => void copyText(game.pgn() || '*', 'PGN')}>⇩ <span>Export PGN</span></button>
+                <button title="Export PGN" onClick={() => void copyText(exportPgn(game), 'PGN')}>⇩ <span>Export PGN</span></button>
               </div>
             </div>
             <div className="under-board">
               <div className="under-title"><span className="mini-icon">⌘</span><div><strong>Position tools</strong><small>Import, export and save your work</small></div></div>
-              <div className="tool-buttons"><button onClick={() => { setFenInput(game.fen()); setShowFen(true) }}>Copy / load FEN</button><button onClick={saveGame}>Save game</button><button onClick={() => setShowLegalMoves((value) => !value)}>{showLegalMoves ? 'Hide' : 'Show'} last move</button></div>
+              <div className="tool-buttons"><button onClick={() => { setFenInput(game.fen()); setShowFen(true) }}>Copy / load FEN</button><button onClick={saveGame}>Save game</button><button onClick={() => setShowLastMove((value) => !value)}>{showLastMove ? 'Hide' : 'Show'} last move</button></div>
             </div>
             {message && <div className="feedback" role="status"><span>ⓘ</span>{message}<button onClick={() => setMessage('')} aria-label="Dismiss message">×</button></div>}
           </section>
@@ -228,22 +281,22 @@ function App() {
             <section className="panel moves-panel">
               <div className="panel-heading"><div><span className="panel-icon">☷</span><strong>Move history</strong></div><span className="move-count">{history.length} {history.length === 1 ? 'MOVE' : 'MOVES'}</span></div>
               {movePairs.length === 0 ? <div className="empty-moves"><div className="empty-board">♞</div><strong>Your game starts here</strong><p>Make a move on the board. Every legal move will appear here.</p></div> : <div className="move-table"><div className="move-header"><span>#</span><span>WHITE</span><span>BLACK</span></div>{movePairs.map((move) => <div className="move-row" key={move.number}><span className="move-number">{move.number}.</span><button onClick={() => setMessage(`Move ${move.number}: ${move.white}`)}>{move.white}</button><button onClick={() => move.black && setMessage(`Move ${move.number}... ${move.black}`)}>{move.black ?? ''}</button></div>)}</div>}
-              <div className="move-footer"><span>{game.isGameOver() ? 'Game finished' : 'Local board · legal moves'}</span><button onClick={() => void copyText(game.pgn() || '*', 'PGN')}>Copy PGN ↗</button></div>
+              <div className="move-footer"><span>{game.isGameOver() ? 'Game finished' : 'Local board · legal moves'}</span><button onClick={() => void copyText(exportPgn(game), 'PGN')}>Copy PGN ↗</button></div>
             </section>
 
-            <section className="panel insights-panel"><div className="panel-heading"><div><span className="panel-icon">✧</span><strong>Analysis insights</strong></div></div><div className="insight-row"><span className="insight-symbol">♟</span><div><strong>Board state</strong><p>{game.isCheckmate() ? 'Checkmate position' : game.isCheck() ? 'The side to move is in check' : game.isDraw() ? 'Draw position' : 'Legal position · ready to study'}</p></div></div><div className="insight-row"><span className="insight-symbol">↗</span><div><strong>Best move and variations</strong><p>Available after the Stockfish engine is connected.</p></div></div></section>
+            <section className="panel insights-panel"><div className="panel-heading"><div><span className="panel-icon">✧</span><strong>Position insights</strong></div></div><div className="insight-row"><span className="insight-symbol">♟</span><div><strong>Board state</strong><p>{game.isCheckmate() ? 'Checkmate position' : game.isCheck() ? 'The side to move is in check' : game.isDraw() ? 'Draw position' : 'Legal position · ready to study'}</p></div></div><div className="insight-row"><span className="insight-symbol">↗</span><div><strong>Best move and variations</strong><p>Available after the Stockfish engine is connected.</p></div></div></section>
           </aside>
         </div>
-
-        {showSettings && <div className="modal-backdrop" onClick={() => setShowSettings(false)}><section className="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><div className="eyebrow">PREFERENCES</div><h2 id="settings-title">Board settings</h2></div><button className="icon-button" onClick={() => setShowSettings(false)} aria-label="Close">×</button></div><label className="form-label">Board colour</label><div className="theme-options">{(['green', 'blue', 'brown'] as Theme[]).map((theme) => <button key={theme} className={boardTheme === theme ? 'theme-option selected' : 'theme-option'} onClick={() => setBoardTheme(theme)}><span className={`theme-swatch ${theme}`} />{theme[0]?.toUpperCase() + theme.slice(1)}{boardTheme === theme && ' ✓'}</button>)}</div><label className="check-setting"><input type="checkbox" checked={showLegalMoves} onChange={(event) => setShowLegalMoves(event.target.checked)} /> Highlight the most recent move</label><p className="modal-hint">Preferences apply to this board in the current session.</p></section></div>}
-
-        {showFen && <div className="modal-backdrop" onClick={() => setShowFen(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="fen-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><div className="eyebrow">POSITION EXCHANGE</div><h2 id="fen-title">FEN position</h2></div><button className="icon-button" onClick={() => setShowFen(false)} aria-label="Close">×</button></div><p className="modal-description">Load a position by pasting its FEN string, or copy the current position.</p><textarea value={fenInput || (showFen ? game.fen() : '')} onChange={(event) => setFenInput(event.target.value)} rows={3} spellCheck={false} aria-label="FEN string" /><div className="modal-actions"><button className="button secondary" onClick={() => void copyText(game.fen(), 'FEN')}>Copy current FEN</button><button className="button primary" onClick={loadFen}>Load position</button></div></section></div>}
-
-        {showPgn && <div className="modal-backdrop" onClick={() => setShowPgn(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="pgn-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><div className="eyebrow">GAME EXCHANGE</div><h2 id="pgn-title">Import PGN</h2></div><button className="icon-button" onClick={() => setShowPgn(false)} aria-label="Close">×</button></div><p className="modal-description">Paste a PGN game. Loading it will replace the moves on this board.</p><textarea value={pgnInput} onChange={(event) => setPgnInput(event.target.value)} rows={7} placeholder={'[Event "Casual Game"]\n\n1. e4 e5 2. Nf3 Nc6 *'} spellCheck={false} aria-label="PGN game" /><div className="modal-actions"><button className="button secondary" onClick={() => setShowPgn(false)}>Cancel</button><button className="button primary" onClick={loadPgn}>Load game</button></div></section></div>}
 
         {activePanel === 'library' && savedGames.length > 0 && <section className="saved-library"><div className="panel-heading"><div><span className="panel-icon">▣</span><strong>Saved games on this device</strong></div><span className="move-count">{savedGames.length} SAVED</span></div>{savedGames.map((pgn, index) => <div className="saved-game" key={`${index}-${pgn}`}><div><strong>Saved game {savedGames.length - index}</strong><small>{pgn.slice(0, 100).replace(/\s+/g, ' ') || 'Position only'}</small></div><button className="button secondary small" onClick={() => { setPgnInput(pgn); setShowPgn(true); setActivePanel('analysis') }}>Open PGN</button></div>)}</section>}
         <footer className="app-footer"><span>♞ ChessLab</span><span>Local-first chess study · No multiplayer</span><span>Built for focused analysis</span></footer>
       </main>
+
+      {showSettings && <div className="modal-backdrop" onClick={() => setShowSettings(false)}><section className="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><div className="eyebrow">PREFERENCES</div><h2 id="settings-title">Board settings</h2></div><button className="icon-button" onClick={() => setShowSettings(false)} aria-label="Close">×</button></div><label className="form-label">Board colour</label><div className="theme-options">{(['green', 'blue', 'brown'] as Theme[]).map((theme) => <button key={theme} className={boardTheme === theme ? 'theme-option selected' : 'theme-option'} onClick={() => setBoardTheme(theme)}><span className={`theme-swatch ${theme}`} />{theme[0]?.toUpperCase() + theme.slice(1)}{boardTheme === theme && ' ✓'}</button>)}</div><label className="check-setting"><input type="checkbox" checked={showLastMove} onChange={(event) => setShowLastMove(event.target.checked)} /> Highlight the most recent move</label><p className="modal-hint">Preferences apply to this board in the current session.</p></section></div>}
+
+      {showFen && <div className="modal-backdrop" onClick={() => setShowFen(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="fen-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><div className="eyebrow">POSITION EXCHANGE</div><h2 id="fen-title">FEN position</h2></div><button className="icon-button" onClick={() => setShowFen(false)} aria-label="Close">×</button></div><p className="modal-description">Load a position by pasting its FEN string, or copy the current position.</p><textarea value={fenInput} onChange={(event) => setFenInput(event.target.value)} rows={3} spellCheck={false} aria-label="FEN string" /><div className="modal-actions"><button className="button secondary" onClick={() => void copyText(game.fen(), 'FEN')}>Copy current FEN</button><button className="button primary" onClick={loadFen}>Load position</button></div></section></div>}
+
+      {showPgn && <div className="modal-backdrop" onClick={() => setShowPgn(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="pgn-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><div className="eyebrow">GAME EXCHANGE</div><h2 id="pgn-title">Import PGN</h2></div><button className="icon-button" onClick={() => setShowPgn(false)} aria-label="Close">×</button></div><p className="modal-description">Paste a PGN game. Loading it will replace the moves on this board.</p><textarea value={pgnInput} onChange={(event) => setPgnInput(event.target.value)} rows={7} placeholder={'[Event "Casual Game"]\n\n1. e4 e5 2. Nf3 Nc6 *'} spellCheck={false} aria-label="PGN game" /><div className="modal-actions"><button className="button secondary" onClick={() => setShowPgn(false)}>Cancel</button><button className="button primary" onClick={loadPgn}>Load game</button></div></section></div>}
     </div>
   )
 }
