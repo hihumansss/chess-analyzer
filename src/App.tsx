@@ -434,13 +434,6 @@ function App() {
           <div className="heading-actions"><button className="button secondary" onClick={() => { setFenInput(displayGame.fen()); setShowFen(true) }}>Import FEN</button><button className="button primary" onClick={newGame}>＋ New game</button></div>
         </section>
 
-        {activePanel !== 'analysis' && activePanel !== 'play' && (
-          <div className="feature-notice">
-            <span className="notice-icon">✦</span><div><strong>{NAV.find((item) => item.id === activePanel)?.label} is being built</strong><p>This section is not pretending to be complete. For now, use the working analysis board and saved-game tools. The next milestones will add this section's real functionality.</p></div>
-            <button className="button secondary small" onClick={() => setActivePanel('analysis')}>Open analysis</button>
-          </div>
-        )}
-
         {activePanel === 'play' && (
           <section className="panel play-setup">
             <div className="panel-heading"><div><span className="panel-icon">♟</span><strong>Play against Stockfish 19</strong></div><span className="move-count">SINGLE-PLAYER</span></div>
