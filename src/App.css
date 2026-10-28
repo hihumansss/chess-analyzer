@@ -28,3 +28,14 @@
 .engine-actions { display: flex; margin-top: 10px; }
 .engine-load-button { width: 100%; white-space: normal; line-height: 1.45; }
 .engine-controls input:disabled { opacity: .35; }
+
+
+/* Single-player computer game setup */
+.play-setup { margin: 0 0 17px; }
+.play-setup-body { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; padding: 14px; }
+.play-choice { display: grid; gap: 6px; min-width: 190px; }
+.play-choice label { font-size: 10px; font-weight: 700; color: #66746a; }
+.play-choice select { min-height: 35px; border: 1px solid #dfe6dd; border-radius: 7px; padding: 7px 10px; background: #fbfcfa; color: #435248; font: inherit; font-size: 10px; }
+.play-setup-body p { flex-basis: 100%; margin: 0; color: #89958b; font-size: 10px; line-height: 1.6; }
+.play-setup-body p[role="status"] { color: #8a6b30; }
+@media (max-width: 520px) { .play-setup-body { align-items: stretch; flex-direction: column; } .play-choice { width: 100%; } }
