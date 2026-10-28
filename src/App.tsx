@@ -148,6 +148,7 @@ function App() {
   const [lessonChoice, setLessonChoice] = useState<number | null>(null)
   const [lessonFeedback, setLessonFeedback] = useState('')
   const [completedLessons, setCompletedLessons] = useState<number[]>([])
+  const [libraryQuery, setLibraryQuery] = useState('')
   const [savedGames, setSavedGames] = useState<string[]>(() => {
     try {
       const data: unknown = JSON.parse(localStorage.getItem('chesslab-games') ?? '[]')
@@ -306,6 +307,17 @@ function App() {
       setMessage('Game saved in this browser.')
     } catch {
       setMessage('Browser storage is unavailable. The game could not be saved.')
+    }
+  }
+
+  const deleteSavedGame = (pgn: string) => {
+    const next = savedGames.filter((item) => item !== pgn)
+    setSavedGames(next)
+    try {
+      localStorage.setItem('chesslab-games', JSON.stringify(next))
+      setMessage('Saved game deleted from this browser.')
+    } catch {
+      setMessage('The game was removed from this session, but browser storage could not be updated.')
     }
   }
 
@@ -554,7 +566,7 @@ function App() {
         </div>
         )}
 
-        {activePanel === 'library' && <section className="saved-library"><div className="panel-heading"><div><span className="panel-icon">▣</span><strong>Saved games on this device</strong></div><span className="move-count">{savedGames.length} SAVED</span></div>{savedGames.length === 0 ? <div className="library-empty"><strong>No saved games yet</strong><p>Open the analysis board, play a game, and select “Save game” to keep it in this browser.</p><button className="button primary" onClick={() => setActivePanel('analysis')}>Open analysis board</button></div> : savedGames.map((pgn, index) => <div className="saved-game" key={`${index}-${pgn}`}><div><strong>Saved game {savedGames.length - index}</strong><small>{pgn.slice(0, 100).replace(/\s+/g, ' ') || 'Position only'}</small></div><button className="button secondary small" onClick={() => { setPgnInput(pgn); setShowPgn(true); setActivePanel('analysis') }}>Open PGN</button></div>)}</section>}
+        {activePanel === 'library' && <section className="saved-library"><div className="panel-heading"><div><span className="panel-icon">▣</span><strong>Saved games on this device</strong></div><span className="move-count">{savedGames.length} SAVED</span></div><div className="library-controls"><input type="search" aria-label="Search saved games" placeholder="Search saved PGNs…" value={libraryQuery} onChange={(event) => setLibraryQuery(event.target.value)} /></div>{savedGames.length === 0 ? <div className="library-empty"><strong>No saved games yet</strong><p>Open the analysis board, play a game, and select “Save game” to keep it in this browser.</p><button className="button primary" onClick={() => setActivePanel('analysis')}>Open analysis board</button></div> : savedGames.filter((pgn) => pgn.toLowerCase().includes(libraryQuery.toLowerCase())).length === 0 ? <div className="library-empty"><strong>No matching games</strong><p>Try a different search term.</p></div> : savedGames.filter((pgn) => pgn.toLowerCase().includes(libraryQuery.toLowerCase())).map((pgn, index) => <div className="saved-game" key={pgn}><div><strong>Saved game {savedGames.indexOf(pgn) + 1}</strong><small>{pgn.slice(0, 150).replace(/\s+/g, ' ') || 'Position only'}</small></div><div className="saved-game-actions"><button className="button secondary small" onClick={() => { setPgnInput(pgn); setShowPgn(true); setActivePanel('analysis') }}>Open PGN</button><button className="button secondary small" onClick={() => deleteSavedGame(pgn)}>Delete</button></div></div>)}</section>}
         <footer className="app-footer"><span>♞ ChessLab</span><span>Local-first chess study · No multiplayer</span><span>Built for focused analysis</span></footer>
       </main>
 
