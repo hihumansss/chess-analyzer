@@ -1,32 +1,38 @@
-# React + TypeScript + Vite
+# ChessLab
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+ChessLab is a local-first chess study and analysis workspace built with React, TypeScript, Vite, chess.js, and react-chessboard.
 
-Currently, two official plugins are available:
+## Current milestone
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Legal chess moves and game-state checks through chess.js.
+- Move history, undo, reset, and board flip.
+- FEN position import/export and PGN game import/export.
+- Save PGNs to this browser using local storage.
+- Three board colour themes, recent-move highlighting, and a responsive analysis layout.
+- Clearly shows that engine analysis is unavailable until a real Stockfish worker is connected.
 
-## React Compiler
+## Run locally
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Requirements: Node.js 22 or newer and npm.
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Open the local URL printed by Vite. Run the production build and lint checks with:
+
+```bash
+npm run build
+npm run lint
+```
+
+## Planned milestones
+
+1. Integrate a genuine Stockfish Web Worker with evaluation, principal variation, stop/restart, and depth controls.
+2. Add move navigation, variation trees, and analysis annotations.
+3. Implement computer play using the integrated engine.
+4. Build real puzzle practice, lessons, opening exploration, and game-library search.
+5. Add automated tests for chess rules, FEN/PGN exchange, saved-game persistence, and engine behavior.
+
+ChessLab deliberately has no online multiplayer or human-vs-human online play. In-progress sections must not masquerade as implemented features, and analysis must never display invented engine scores.
