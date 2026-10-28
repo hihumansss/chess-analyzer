@@ -73,6 +73,32 @@ function pvToSan(fen: string, variation: string): string {
   return san.join(' ')
 }
 
+type Puzzle = { title: string; fen: string; solutionUci: string; hint: string; explanation: string }
+
+const PUZZLES: Puzzle[] = [
+  {
+    title: 'Mate in one: Queen and king',
+    fen: '7k/5Q2/6K1/8/8/8/8/8 w - - 0 1',
+    solutionUci: 'f7g7',
+    hint: 'Look for a queen move that gives check while the king protects the queen.',
+    explanation: 'Qg7 is checkmate: the queen checks along the seventh rank and is protected by the white king. Black has no legal escape.',
+  },
+  {
+    title: 'Mate in one: Attack on f7',
+    fen: 'r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 3 4',
+    solutionUci: 'h5f7',
+    hint: 'The f7 square is defended by the bishop on c4. Can the queen deliver mate there?',
+    explanation: 'Qxf7 is checkmate. The queen checks the king on e8 and the bishop protects the queen on f7, so the king cannot capture it.',
+  },
+]
+
+type Lesson = { title: string; objective: string; explanation: string; example: string; question: string; answers: string[]; correct: number }
+const LESSONS: Lesson[] = [
+  { title: 'Piece movement and check', objective: 'Recognise legal moves and identify check.', explanation: 'A legal move cannot leave your own king in check. When the king is attacked, you must respond by moving the king, capturing the attacker, or blocking the attack when possible.', example: 'A rook attacks along its rank or file, but another piece can block that line.', question: 'Which rule must every legal move obey?', answers: ['It must capture a piece', 'It cannot leave your own king in check', 'It must move a pawn'], correct: 1 },
+  { title: 'Tactical patterns: forks', objective: 'Spot a move that attacks two targets at once.', explanation: 'A fork is one move that attacks two or more enemy pieces at the same time. Knights are especially good at forks because their movement is difficult to block.', example: 'A knight checks the king while also attacking the queen. The opponent must answer the check first.', question: 'Why is a knight fork powerful?', answers: ['It can attack multiple targets with one move', 'It always wins the queen', 'It cannot be captured'], correct: 0 },
+  { title: 'Basic endgames: opposition', objective: 'Understand the king opposition in king-and-pawn endings.', explanation: 'In a king-and-pawn ending, king activity matters. Opposition occurs when the kings face each other with one square between them and the player not to move can often gain the key tempo.', example: 'Approaching the enemy king directly may let it hold the pawn; using opposition can force it to give ground.', question: 'What is a key goal when using opposition?', answers: ['Keep your king inactive', 'Force the opposing king to give way', 'Trade your king for a pawn'], correct: 1 },
+]
+
 function App() {
   const [game, setGame] = useState(() => new Chess())
   const [selectedPly, setSelectedPly] = useState<number | null>(null)
@@ -91,6 +117,14 @@ function App() {
   const [humanColor, setHumanColor] = useState<'white' | 'black'>('white')
   const lastComputerMoveFen = useRef('')
   const [showLastMove, setShowLastMove] = useState(true)
+  const [puzzleIndex, setPuzzleIndex] = useState(0)
+  const [puzzleGame, setPuzzleGame] = useState(() => new Chess(PUZZLES[0].fen))
+  const [puzzleSolved, setPuzzleSolved] = useState(false)
+  const [puzzleFeedback, setPuzzleFeedback] = useState('Find the best move on the board.')
+  const [lessonIndex, setLessonIndex] = useState(0)
+  const [lessonChoice, setLessonChoice] = useState<number | null>(null)
+  const [lessonFeedback, setLessonFeedback] = useState('')
+  const [completedLessons, setCompletedLessons] = useState<number[]>([])
   const [savedGames, setSavedGames] = useState<string[]>(() => {
     try {
       const data: unknown = JSON.parse(localStorage.getItem('chesslab-games') ?? '[]')
@@ -123,6 +157,40 @@ function App() {
     setSelectedPly(null)
     setMessage('')
   }, [])
+
+  const onPuzzlePieceDrop = useCallback(({ sourceSquare, targetSquare }: { sourceSquare: string; targetSquare: string | null }) => {
+    if (!targetSquare || puzzleSolved) return false
+    const next = cloneGame(puzzleGame)
+    try {
+      const move = next.move({ from: sourceSquare, to: targetSquare, promotion: 'q' })
+      const uci = move.from + move.to + (move.promotion ?? '')
+      if (uci !== PUZZLES[puzzleIndex].solutionUci) {
+        setPuzzleFeedback('Not the solution. Try again; look for the forcing move.')
+        return false
+      }
+      setPuzzleGame(next)
+      setPuzzleSolved(true)
+      setPuzzleFeedback('Solved! ' + PUZZLES[puzzleIndex].explanation)
+      return true
+    } catch {
+      setPuzzleFeedback('That move is not legal. Try another move.')
+      return false
+    }
+  }, [puzzleGame, puzzleIndex, puzzleSolved])
+
+  const selectPuzzle = (index: number) => {
+    const safeIndex = (index + PUZZLES.length) % PUZZLES.length
+    setPuzzleIndex(safeIndex)
+    setPuzzleGame(new Chess(PUZZLES[safeIndex].fen))
+    setPuzzleSolved(false)
+    setPuzzleFeedback(PUZZLES[safeIndex].hint)
+  }
+
+  const chooseLesson = (index: number) => {
+    setLessonIndex((index + LESSONS.length) % LESSONS.length)
+    setLessonChoice(null)
+    setLessonFeedback('')
+  }
 
   const onPieceDrop = useCallback(({ sourceSquare, targetSquare }: { sourceSquare: string; targetSquare: string | null }) => {
     if (!targetSquare) return false
@@ -306,6 +374,15 @@ function App() {
     squareStyles[kingSquare] = { background: 'radial-gradient(circle, rgba(255, 90, 90, .88) 0%, rgba(255, 90, 90, .55) 38%, transparent 72%)' }
   }
 
+  const puzzleBoardOptions: ChessboardOptions = {
+    position: puzzleGame.fen(),
+    boardOrientation: 'white',
+    allowDragging: !puzzleSolved,
+    darkSquareStyle: { backgroundColor: '#779952' },
+    lightSquareStyle: { backgroundColor: '#ebecd0' },
+    onPieceDrop: onPuzzlePieceDrop,
+  }
+
   const boardOptions: ChessboardOptions = {
     position: displayGame.fen(),
     boardOrientation: orientation,
@@ -377,6 +454,21 @@ function App() {
           </section>
         )}
 
+        {activePanel === 'puzzles' && (
+          <section className="feature-page puzzle-page">
+            <div className="feature-page-copy"><div className="eyebrow">TACTICS TRAINING</div><h2>{PUZZLES[puzzleIndex].title}</h2><p>Find the forcing move. Make your move directly on the board; incorrect moves are not committed.</p><div className="puzzle-progress">Puzzle {puzzleIndex + 1} of {PUZZLES.length} · {puzzleSolved ? 'Solved' : 'Unsolved'}</div><p className="puzzle-hint">{puzzleSolved ? PUZZLES[puzzleIndex].explanation : PUZZLES[puzzleIndex].hint}</p><div className={puzzleSolved ? 'feature-feedback success' : 'feature-feedback'} role="status">{puzzleFeedback}</div><div className="feature-actions"><button className="button secondary" onClick={() => setPuzzleFeedback(PUZZLES[puzzleIndex].hint)}>Show hint</button><button className="button secondary" onClick={() => selectPuzzle(puzzleIndex + 1)}>Next puzzle</button><button className="button primary" onClick={() => selectPuzzle(puzzleIndex)}>Retry puzzle</button></div></div>
+            <div className="feature-board"><Chessboard options={puzzleBoardOptions} /></div>
+          </section>
+        )}
+
+        {activePanel === 'learn' && (
+          <section className="feature-page learn-page">
+            <aside className="lesson-list"><div className="eyebrow">CHESS SCHOOL</div><h2>Learning path</h2>{LESSONS.map((lesson, index) => <button key={lesson.title} className={lessonIndex === index ? 'lesson-link selected' : 'lesson-link'} onClick={() => chooseLesson(index)}><span>{completedLessons.includes(index) ? '✓' : index + 1}</span><span>{lesson.title}</span></button>)}</aside>
+            <article className="lesson-content"><div className="eyebrow">LESSON {lessonIndex + 1} OF {LESSONS.length}</div><h2>{LESSONS[lessonIndex].title}</h2><p className="lesson-objective">Goal: {LESSONS[lessonIndex].objective}</p><p>{LESSONS[lessonIndex].explanation}</p><div className="lesson-example"><strong>Example</strong><p>{LESSONS[lessonIndex].example}</p></div><div className="lesson-quiz"><h3>Quick check</h3><p>{LESSONS[lessonIndex].question}</p>{LESSONS[lessonIndex].answers.map((answer, index) => <button key={answer} className={lessonChoice === index ? 'lesson-answer chosen' : 'lesson-answer'} onClick={() => { setLessonChoice(index); setLessonFeedback(index === LESSONS[lessonIndex].correct ? 'Correct. You understood the key idea.' : 'Not quite. Review the explanation and try again.') }}>{answer}</button>)}{lessonFeedback && <p className={lessonChoice === LESSONS[lessonIndex].correct ? 'feature-feedback success' : 'feature-feedback'} role="status">{lessonFeedback}</p>}</div><div className="feature-actions"><button className="button secondary" disabled={lessonIndex === 0} onClick={() => chooseLesson(lessonIndex - 1)}>Previous lesson</button><button className="button primary" disabled={lessonChoice !== LESSONS[lessonIndex].correct} onClick={() => { setCompletedLessons((done) => done.includes(lessonIndex) ? done : [...done, lessonIndex]); if (lessonIndex < LESSONS.length - 1) chooseLesson(lessonIndex + 1) }}>Mark complete / continue</button></div><p className="lesson-progress">{completedLessons.length} of {LESSONS.length} lessons completed in this session.</p></article>
+          </section>
+        )}
+
+        {(activePanel === 'analysis' || activePanel === 'play') && (
         <div className="workspace-grid">
           <section className="board-column">
             <div className="board-card">
@@ -418,8 +510,9 @@ function App() {
             <section className="panel insights-panel"><div className="panel-heading"><div><span className="panel-icon">✧</span><strong>Position insights</strong></div></div><div className="insight-row"><span className="insight-symbol">♟</span><div><strong>Board state</strong><p>{displayGame.isCheckmate() ? 'Checkmate position' : displayGame.isCheck() ? 'The side to move is in check' : displayGame.isDraw() ? 'Draw position' : 'Legal position · ready to study'}</p></div></div><div className="insight-row"><span className="insight-symbol">↗</span><div><strong>Best move and variations</strong><p>{enginePvMessage}</p></div></div></section>
           </aside>
         </div>
+        )}
 
-        {activePanel === 'library' && savedGames.length > 0 && <section className="saved-library"><div className="panel-heading"><div><span className="panel-icon">▣</span><strong>Saved games on this device</strong></div><span className="move-count">{savedGames.length} SAVED</span></div>{savedGames.map((pgn, index) => <div className="saved-game" key={`${index}-${pgn}`}><div><strong>Saved game {savedGames.length - index}</strong><small>{pgn.slice(0, 100).replace(/\s+/g, ' ') || 'Position only'}</small></div><button className="button secondary small" onClick={() => { setPgnInput(pgn); setShowPgn(true); setActivePanel('analysis') }}>Open PGN</button></div>)}</section>}
+        {activePanel === 'library' && <section className="saved-library"><div className="panel-heading"><div><span className="panel-icon">▣</span><strong>Saved games on this device</strong></div><span className="move-count">{savedGames.length} SAVED</span></div>{savedGames.length === 0 ? <div className="library-empty"><strong>No saved games yet</strong><p>Open the analysis board, play a game, and select “Save game” to keep it in this browser.</p><button className="button primary" onClick={() => setActivePanel('analysis')}>Open analysis board</button></div> : savedGames.map((pgn, index) => <div className="saved-game" key={`${index}-${pgn}`}><div><strong>Saved game {savedGames.length - index}</strong><small>{pgn.slice(0, 100).replace(/\s+/g, ' ') || 'Position only'}</small></div><button className="button secondary small" onClick={() => { setPgnInput(pgn); setShowPgn(true); setActivePanel('analysis') }}>Open PGN</button></div>)}</section>}
         <footer className="app-footer"><span>♞ ChessLab</span><span>Local-first chess study · No multiplayer</span><span>Built for focused analysis</span></footer>
       </main>
 
