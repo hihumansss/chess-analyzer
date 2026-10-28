@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState, type CSSProperties } from 'react'
 import { Chess } from 'chess.js'
 import { Chessboard, type ChessboardOptions } from 'react-chessboard'
+import { useStockfish } from './useStockfish'
 import './App.css'
 
 type Panel = 'analysis' | 'play' | 'puzzles' | 'learn' | 'library'
@@ -51,6 +52,27 @@ function exportPgn(position: Chess): string {
   return '*'
 }
 
+
+function pvToSan(fen: string, variation: string): string {
+  const replay = safeGameFromFen(fen) ?? new Chess()
+  const san: string[] = []
+  for (const uci of variation.trim().split(/\s+/)) {
+    if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci)) break
+    const promotion = uci[4] as 'q' | 'r' | 'b' | 'n' | undefined
+    try {
+      const move = replay.move({
+        from: uci.slice(0, 2),
+        to: uci.slice(2, 4),
+        ...(promotion ? { promotion } : {}),
+      })
+      san.push(move.san)
+    } catch {
+      break
+    }
+  }
+  return san.join(' ')
+}
+
 function App() {
   const [game, setGame] = useState(() => new Chess())
   const [activePanel, setActivePanel] = useState<Panel>('analysis')
@@ -62,6 +84,8 @@ function App() {
   const [showFen, setShowFen] = useState(false)
   const [showPgn, setShowPgn] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [engineEnabled, setEngineEnabled] = useState(false)
+  const [engineDepth, setEngineDepth] = useState(20)
   const [showLastMove, setShowLastMove] = useState(true)
   const [savedGames, setSavedGames] = useState<string[]>(() => {
     try {
@@ -164,6 +188,45 @@ function App() {
     }
   }
 
+  const stockfish = useStockfish(game.fen(), engineEnabled, engineDepth)
+  const engineAnalysis = stockfish.analysis
+  const scoreWhiteCp = engineAnalysis.scoreCp === null
+    ? null
+    : game.turn() === 'w' ? engineAnalysis.scoreCp : -engineAnalysis.scoreCp
+  const mateWhite = engineAnalysis.mate === null
+    ? null
+    : game.turn() === 'w' ? engineAnalysis.mate : -engineAnalysis.mate
+  const evaluationText = mateWhite !== null
+    ? (mateWhite >= 0 ? '+' : '-') + 'M' + Math.abs(mateWhite)
+    : scoreWhiteCp === null
+      ? '—'
+      : (scoreWhiteCp >= 0 ? '+' : '') + (scoreWhiteCp / 100).toFixed(2)
+  const evaluationPercent = scoreWhiteCp === null
+    ? 50
+    : Math.max(6, Math.min(94, 50 + scoreWhiteCp / 100 * 8))
+  const pvSan = engineAnalysis.pvUci ? pvToSan(game.fen(), engineAnalysis.pvUci) : ''
+  const engineStatusLabel = stockfish.status === 'ready'
+    ? 'STOCKFISH 19'
+    : stockfish.status === 'loading'
+      ? 'LOADING'
+      : stockfish.status === 'error'
+        ? 'ENGINE ERROR'
+        : 'ENGINE OFF'
+  const engineStatusMessage = stockfish.status === 'ready'
+    ? 'Engine ready · depth ' + (engineAnalysis.depth || engineDepth)
+    : stockfish.status === 'loading'
+      ? 'Starting the full Stockfish engine. The first load can take a while because the engine files are large.'
+      : stockfish.status === 'error'
+        ? 'Stockfish failed to start. Check that the generated engine files are available, then refresh and try again.'
+        : 'No score is shown until you start Stockfish. This button loads the full-strength single-threaded engine, not a lite build.'
+  const enginePvMessage = stockfish.status === 'ready'
+    ? (pvSan ? 'Depth ' + engineAnalysis.depth + ' · ' + pvSan : 'Waiting for the analysis line...')
+    : stockfish.status === 'loading'
+      ? 'Engine is starting...'
+      : stockfish.status === 'error'
+        ? 'The engine could not start.'
+        : 'Start Stockfish to calculate a real best line.'
+
   const status = game.isCheckmate()
     ? `Checkmate — ${game.turn() === 'w' ? 'Black' : 'White'} wins`
     : game.isDraw()
@@ -222,7 +285,7 @@ function App() {
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="engine-card"><span className="engine-orb" /><div><strong>Analysis engine</strong><small>Not connected yet</small></div><span className="engine-status">OFF</span></div>
+          <div className={stockfish.status === 'ready' ? 'engine-card engine-card-active' : 'engine-card'}><span className={stockfish.status === 'ready' ? 'engine-orb engine-orb-active' : 'engine-orb'} /><div><strong>Stockfish 19</strong><small>{stockfish.status === 'ready' ? 'Full engine ready' : stockfish.status === 'loading' ? 'Loading full engine' : stockfish.status === 'error' ? 'Failed to start' : 'Not started'}</small></div><span className="engine-status">{stockfish.status === 'ready' ? 'ON' : stockfish.status === 'loading' ? 'LOAD' : stockfish.status === 'error' ? 'ERR' : 'OFF'}</span></div>
           <button className="nav-item quiet" onClick={() => setShowSettings((value) => !value)}><span className="nav-icon">⚙</span>Settings</button>
           <div className="sidebar-foot">CHESSLAB PREVIEW <span>v0.1</span></div>
         </div>
@@ -273,9 +336,9 @@ function App() {
 
           <aside className="analysis-column">
             <section className="panel eval-panel">
-              <div className="panel-heading"><div><span className="panel-icon">◒</span><strong>Evaluation</strong></div><span className="waiting-tag">ENGINE OFF</span></div>
-              <div className="eval-body"><div className="eval-bar" aria-label="Evaluation unavailable"><div className="eval-neutral" /></div><div className="eval-content"><div className="eval-score">— <small>cp</small></div><strong>Engine not connected</strong><p>No score is shown because Stockfish has not been integrated yet. Connect the real engine to get evaluations and best moves.</p></div></div>
-              <div className="engine-controls"><label htmlFor="depth-range">Search depth <span>Unavailable</span></label><input id="depth-range" type="range" min="1" max="40" value="20" disabled /><div className="depth-scale"><span>1</span><span>20</span><span>40</span></div></div>
+              <div className="panel-heading"><div><span className="panel-icon">◒</span><strong>Evaluation</strong></div><span className={stockfish.status === 'ready' ? 'engine-on-tag' : 'waiting-tag'}>{engineStatusLabel}</span></div>
+              <div className="eval-body"><div className="eval-bar" aria-label="Stockfish evaluation from White's perspective"><div className="eval-neutral" style={{ height: evaluationPercent + '%' }} /></div><div className="eval-content"><div className="eval-score">{evaluationText} <small>{mateWhite !== null ? 'MATE' : 'WHITE POV'}</small></div><strong>{stockfish.status === 'ready' ? 'Live Stockfish evaluation' : stockfish.status === 'loading' ? 'Starting Stockfish 19' : stockfish.status === 'error' ? 'Engine unavailable' : 'Engine is stopped'}</strong><p>{engineStatusMessage}</p></div></div>
+              <div className="engine-controls"><label htmlFor="depth-range">Search depth <span>{stockfish.status === 'ready' ? engineDepth + ' ply' : 'Start engine to enable'}</span></label><input id="depth-range" type="range" min="1" max="40" value={engineDepth} onChange={(event) => setEngineDepth(Number(event.target.value))} disabled={!engineEnabled || stockfish.status !== 'ready'} /><div className="depth-scale"><span>1</span><span>{engineDepth}</span><span>40</span></div><div className="engine-actions">{!engineEnabled ? <button className="button primary engine-load-button" onClick={() => setEngineEnabled(true)}>Load full Stockfish 19 (~94 MB)</button> : <button className="button secondary engine-load-button" onClick={() => setEngineEnabled(false)}>Stop engine</button>}</div></div>
             </section>
 
             <section className="panel moves-panel">
@@ -284,7 +347,7 @@ function App() {
               <div className="move-footer"><span>{game.isGameOver() ? 'Game finished' : 'Local board · legal moves'}</span><button onClick={() => void copyText(exportPgn(game), 'PGN')}>Copy PGN ↗</button></div>
             </section>
 
-            <section className="panel insights-panel"><div className="panel-heading"><div><span className="panel-icon">✧</span><strong>Position insights</strong></div></div><div className="insight-row"><span className="insight-symbol">♟</span><div><strong>Board state</strong><p>{game.isCheckmate() ? 'Checkmate position' : game.isCheck() ? 'The side to move is in check' : game.isDraw() ? 'Draw position' : 'Legal position · ready to study'}</p></div></div><div className="insight-row"><span className="insight-symbol">↗</span><div><strong>Best move and variations</strong><p>Available after the Stockfish engine is connected.</p></div></div></section>
+            <section className="panel insights-panel"><div className="panel-heading"><div><span className="panel-icon">✧</span><strong>Position insights</strong></div></div><div className="insight-row"><span className="insight-symbol">♟</span><div><strong>Board state</strong><p>{game.isCheckmate() ? 'Checkmate position' : game.isCheck() ? 'The side to move is in check' : game.isDraw() ? 'Draw position' : 'Legal position · ready to study'}</p></div></div><div className="insight-row"><span className="insight-symbol">↗</span><div><strong>Best move and variations</strong><p>{enginePvMessage}</p></div></div></section>
           </aside>
         </div>
 
