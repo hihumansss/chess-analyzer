@@ -5,13 +5,15 @@ ChessLab is a local-first chess study workspace built with React, TypeScript, Vi
 ## Implemented features
 
 - Legal chess movement, check/checkmate/draw detection, move history, undo, board flipping, and last-move/check highlighting.
-- Non-destructive move-history browsing. Selecting a move changes the displayed position without deleting later moves; making a move from an earlier position creates a new line.
+- Non-destructive move-history browsing with first/previous/next/latest controls. Selecting a move changes the displayed position without deleting later moves; making a move from an earlier position preserves the original line as an alternate variation.
 - FEN import and copy, PGN import/export, and browser-local saved games.
 - Board colour themes and responsive layout.
-- Real Stockfish 19 single-threaded WebAssembly analysis, evaluation from White's perspective, principal variation, and configurable search depth.
+- Real Stockfish 19 single-threaded WebAssembly analysis, evaluation from White's perspective, principal variation, configurable search depth, a play-top-move action, and principal-variation copying.
 - Single-player games against Stockfish 19, with a choice of playing White or Black. Online human-vs-human multiplayer is intentionally excluded.
 - Interactive mate-in-one puzzle practice with legal-move validation, hints, retry, and solution explanations.
 - Interactive beginner/intermediate lessons with knowledge checks and session progress.
+- A small built-in opening reference for common opening lines, with a clear fallback for unrecognized lines.
+- A variation list that can load or delete alternate move lines.
 - Automated chess rules smoke tests for legal moves, FEN/PGN exchange, castling, en passant, promotion, and included puzzle solutions.
 
 ## Run locally
@@ -39,7 +41,7 @@ The production build checks TypeScript and bundles the application. The test com
 
 ChessLab is not a finished replacement for every feature on Chess.com and Lichess yet. The current implementation has a small puzzle set and a small lesson set. Important next milestones include:
 
-1. A variation tree with add, select, rename, and delete variation support.
+1. A nested variation tree with named lines, clearer branching controls, and variation renaming.
 2. Game review with engine-based move classifications, candidate lines, and explanations.
 3. A larger, sourced puzzle library with rating progression and persistent progress.
 4. Opening explorer and opening statistics.
