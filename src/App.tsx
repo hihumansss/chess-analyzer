@@ -75,6 +75,7 @@ function pvToSan(fen: string, variation: string): string {
 
 function App() {
   const [game, setGame] = useState(() => new Chess())
+  const [selectedPly, setSelectedPly] = useState<number | null>(null)
   const [activePanel, setActivePanel] = useState<Panel>('analysis')
   const [orientation, setOrientation] = useState<'white' | 'black'>('white')
   const [boardTheme, setBoardTheme] = useState<Theme>('green')
@@ -96,8 +97,15 @@ function App() {
     }
   })
 
+  const displayGame = useMemo(() => {
+    if (selectedPly === null || selectedPly >= game.history().length) return game
+    const position = cloneGame(game)
+    while (position.history().length > selectedPly) position.undo()
+    return position
+  }, [game, selectedPly])
+
   const history = game.history({ verbose: true })
-  const currentMove = history.at(-1)
+  const currentMove = displayGame.history({ verbose: true }).at(-1)
   const movePairs = useMemo(() => {
     const pairs: { number: number; white?: string; black?: string }[] = []
     const moves = game.history()
@@ -109,12 +117,13 @@ function App() {
 
   const updateGame = useCallback((next: Chess) => {
     setGame(next)
+    setSelectedPly(null)
     setMessage('')
   }, [])
 
   const onPieceDrop = useCallback(({ sourceSquare, targetSquare }: { sourceSquare: string; targetSquare: string | null }) => {
     if (!targetSquare) return false
-    const next = cloneGame(game)
+    const next = cloneGame(displayGame)
     try {
       next.move({ from: sourceSquare, to: targetSquare, promotion: 'q' })
       updateGame(next)
@@ -122,7 +131,7 @@ function App() {
     } catch {
       return false
     }
-  }, [game, updateGame])
+  }, [displayGame, updateGame])
 
   const newGame = () => {
     updateGame(new Chess())
@@ -130,6 +139,15 @@ function App() {
   }
 
   const undoMove = () => {
+    if (selectedPly !== null && selectedPly < game.history().length) {
+      if (selectedPly === 0) {
+        setMessage('Already at the starting position.')
+        return
+      }
+      setSelectedPly(selectedPly - 1)
+      setMessage('Moved back one ply in the game.')
+      return
+    }
     const next = cloneGame(game)
     if (!next.undo()) {
       setMessage('There are no moves to undo.')
@@ -139,13 +157,10 @@ function App() {
     setMessage('Last move undone.')
   }
 
-  // Move-list entries are navigation controls, not just labels.
-  // Replaying from the current game's recorded history also works for imported PGNs
-  // and positions that started from a custom FEN.
+  // Browsing the move list changes the displayed position without deleting later moves.
+  // Making a move from a historical position intentionally creates a new branch.
   const jumpToPly = (ply: number) => {
-    const next = cloneGame(game)
-    while (next.history().length > ply) next.undo()
-    updateGame(next)
+    setSelectedPly(ply >= game.history().length ? null : ply)
     setMessage(ply === 0 ? 'Showing the starting position.' : `Showing position after ply ${ply}.`)
   }
 
@@ -198,14 +213,14 @@ function App() {
     }
   }
 
-  const stockfish = useStockfish(game.fen(), engineEnabled, engineDepth)
+  const stockfish = useStockfish(displayGame.fen(), engineEnabled, engineDepth)
   const engineAnalysis = stockfish.analysis
   const scoreWhiteCp = engineAnalysis.scoreCp === null
     ? null
-    : game.turn() === 'w' ? engineAnalysis.scoreCp : -engineAnalysis.scoreCp
+    : displayGame.turn() === 'w' ? engineAnalysis.scoreCp : -engineAnalysis.scoreCp
   const mateWhite = engineAnalysis.mate === null
     ? null
-    : game.turn() === 'w' ? engineAnalysis.mate : -engineAnalysis.mate
+    : displayGame.turn() === 'w' ? engineAnalysis.mate : -engineAnalysis.mate
   const evaluationText = mateWhite !== null
     ? (mateWhite >= 0 ? '+' : '-') + 'M' + Math.abs(mateWhite)
     : scoreWhiteCp === null
@@ -237,17 +252,17 @@ function App() {
         ? 'The engine could not start.'
         : 'Start Stockfish to calculate a real best line.'
 
-  const status = game.isCheckmate()
-    ? `Checkmate — ${game.turn() === 'w' ? 'Black' : 'White'} wins`
-    : game.isDraw()
+  const status = displayGame.isCheckmate()
+    ? `Checkmate — ${displayGame.turn() === 'w' ? 'Black' : 'White'} wins`
+    : displayGame.isDraw()
       ? 'Draw — the game is over'
-      : game.isCheck()
-        ? `${game.turn() === 'w' ? 'White' : 'Black'} to move · Check`
-        : `${game.turn() === 'w' ? 'White' : 'Black'} to move`
+      : displayGame.isCheck()
+        ? `${displayGame.turn() === 'w' ? 'White' : 'Black'} to move · Check`
+        : `${displayGame.turn() === 'w' ? 'White' : 'Black'} to move`
 
-  const board = game.board()
+  const board = displayGame.board()
   const kingSquare = board.flatMap((rank, row) =>
-    rank.map((piece, column) => piece?.type === 'k' && piece.color === game.turn()
+    rank.map((piece, column) => piece?.type === 'k' && piece.color === displayGame.turn()
       ? `${FILES[column]}${8 - row}`
       : ''),
   ).find((square) => square.length > 0)
@@ -262,9 +277,9 @@ function App() {
   }
 
   const boardOptions: ChessboardOptions = {
-    position: game.fen(),
+    position: displayGame.fen(),
     boardOrientation: orientation,
-    allowDragging: !game.isGameOver(),
+    allowDragging: !displayGame.isGameOver(),
     squareStyles,
     darkSquareStyle: boardTheme === 'green'
       ? { backgroundColor: '#779952' }
@@ -309,7 +324,7 @@ function App() {
 
         <section className="page-heading">
           <div><div className="eyebrow">CHESS ANALYSIS STUDIO</div><h1>{activePanel === 'analysis' ? 'Analysis board' : NAV.find((item) => item.id === activePanel)?.label}</h1><p>Study positions, explore variations, and review your games.</p></div>
-          <div className="heading-actions"><button className="button secondary" onClick={() => { setFenInput(game.fen()); setShowFen(true) }}>Import FEN</button><button className="button primary" onClick={newGame}>＋ New game</button></div>
+          <div className="heading-actions"><button className="button secondary" onClick={() => { setFenInput(displayGame.fen()); setShowFen(true) }}>Import FEN</button><button className="button primary" onClick={newGame}>＋ New game</button></div>
         </section>
 
         {activePanel !== 'analysis' && (
@@ -354,10 +369,10 @@ function App() {
             <section className="panel moves-panel">
               <div className="panel-heading"><div><span className="panel-icon">☷</span><strong>Move history</strong></div><span className="move-count">{history.length} {history.length === 1 ? 'MOVE' : 'MOVES'}</span></div>
               {movePairs.length === 0 ? <div className="empty-moves"><div className="empty-board">♞</div><strong>Your game starts here</strong><p>Make a move on the board. Every legal move will appear here.</p></div> : <div className="move-table"><div className="move-header"><span>#</span><span>WHITE</span><span>BLACK</span></div>{movePairs.map((move) => <div className="move-row" key={move.number}><span className="move-number">{move.number}.</span><button title={`Jump to ${move.number}. ${move.white}`} onClick={() => jumpToPly((move.number - 1) * 2 + 1)}>{move.white}</button><button title={move.black ? `Jump to ${move.number}... ${move.black}` : 'Black has not moved'} disabled={!move.black} onClick={() => jumpToPly(move.number * 2)}>{move.black ?? ''}</button></div>)}</div>}
-              <div className="move-footer"><span>{game.isGameOver() ? 'Game finished' : 'Local board · legal moves'}</span><button onClick={() => void copyText(exportPgn(game), 'PGN')}>Copy PGN ↗</button></div>
+              <div className="move-footer"><span>{displayGame.isGameOver() ? 'Game finished' : selectedPly !== null ? 'Browsing game history' : 'Local board · legal moves'}</span><button onClick={() => void copyText(exportPgn(game), 'PGN')}>Copy PGN ↗</button></div>
             </section>
 
-            <section className="panel insights-panel"><div className="panel-heading"><div><span className="panel-icon">✧</span><strong>Position insights</strong></div></div><div className="insight-row"><span className="insight-symbol">♟</span><div><strong>Board state</strong><p>{game.isCheckmate() ? 'Checkmate position' : game.isCheck() ? 'The side to move is in check' : game.isDraw() ? 'Draw position' : 'Legal position · ready to study'}</p></div></div><div className="insight-row"><span className="insight-symbol">↗</span><div><strong>Best move and variations</strong><p>{enginePvMessage}</p></div></div></section>
+            <section className="panel insights-panel"><div className="panel-heading"><div><span className="panel-icon">✧</span><strong>Position insights</strong></div></div><div className="insight-row"><span className="insight-symbol">♟</span><div><strong>Board state</strong><p>{displayGame.isCheckmate() ? 'Checkmate position' : displayGame.isCheck() ? 'The side to move is in check' : displayGame.isDraw() ? 'Draw position' : 'Legal position · ready to study'}</p></div></div><div className="insight-row"><span className="insight-symbol">↗</span><div><strong>Best move and variations</strong><p>{enginePvMessage}</p></div></div></section>
           </aside>
         </div>
 
@@ -367,7 +382,7 @@ function App() {
 
       {showSettings && <div className="modal-backdrop" onClick={() => setShowSettings(false)}><section className="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><div className="eyebrow">PREFERENCES</div><h2 id="settings-title">Board settings</h2></div><button className="icon-button" onClick={() => setShowSettings(false)} aria-label="Close">×</button></div><label className="form-label">Board colour</label><div className="theme-options">{(['green', 'blue', 'brown'] as Theme[]).map((theme) => <button key={theme} className={boardTheme === theme ? 'theme-option selected' : 'theme-option'} onClick={() => setBoardTheme(theme)}><span className={`theme-swatch ${theme}`} />{theme[0]?.toUpperCase() + theme.slice(1)}{boardTheme === theme && ' ✓'}</button>)}</div><label className="check-setting"><input type="checkbox" checked={showLastMove} onChange={(event) => setShowLastMove(event.target.checked)} /> Highlight the most recent move</label><p className="modal-hint">Preferences apply to this board in the current session.</p></section></div>}
 
-      {showFen && <div className="modal-backdrop" onClick={() => setShowFen(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="fen-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><div className="eyebrow">POSITION EXCHANGE</div><h2 id="fen-title">FEN position</h2></div><button className="icon-button" onClick={() => setShowFen(false)} aria-label="Close">×</button></div><p className="modal-description">Load a position by pasting its FEN string, or copy the current position.</p><textarea value={fenInput} onChange={(event) => setFenInput(event.target.value)} rows={3} spellCheck={false} aria-label="FEN string" /><div className="modal-actions"><button className="button secondary" onClick={() => void copyText(game.fen(), 'FEN')}>Copy current FEN</button><button className="button primary" onClick={loadFen}>Load position</button></div></section></div>}
+      {showFen && <div className="modal-backdrop" onClick={() => setShowFen(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="fen-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><div className="eyebrow">POSITION EXCHANGE</div><h2 id="fen-title">FEN position</h2></div><button className="icon-button" onClick={() => setShowFen(false)} aria-label="Close">×</button></div><p className="modal-description">Load a position by pasting its FEN string, or copy the current position.</p><textarea value={fenInput} onChange={(event) => setFenInput(event.target.value)} rows={3} spellCheck={false} aria-label="FEN string" /><div className="modal-actions"><button className="button secondary" onClick={() => void copyText(displayGame.fen(), 'FEN')}>Copy current FEN</button><button className="button primary" onClick={loadFen}>Load position</button></div></section></div>}
 
       {showPgn && <div className="modal-backdrop" onClick={() => setShowPgn(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="pgn-title" onClick={(event) => event.stopPropagation()}><div className="modal-header"><div><div className="eyebrow">GAME EXCHANGE</div><h2 id="pgn-title">Import PGN</h2></div><button className="icon-button" onClick={() => setShowPgn(false)} aria-label="Close">×</button></div><p className="modal-description">Paste a PGN game. Loading it will replace the moves on this board.</p><textarea value={pgnInput} onChange={(event) => setPgnInput(event.target.value)} rows={7} placeholder={'[Event "Casual Game"]\n\n1. e4 e5 2. Nf3 Nc6 *'} spellCheck={false} aria-label="PGN game" /><div className="modal-actions"><button className="button secondary" onClick={() => setShowPgn(false)}>Cancel</button><button className="button primary" onClick={loadPgn}>Load game</button></div></section></div>}
     </div>
