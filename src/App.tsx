@@ -4,7 +4,7 @@ import { Chessboard, type ChessboardOptions } from 'react-chessboard'
 import { useStockfish } from './useStockfish'
 import './App.css'
 
-type Panel = 'analysis' | 'play' | 'puzzles' | 'learn' | 'library'
+type Panel = 'analysis' | 'play' | 'puzzles' | 'learn' | 'library' | 'review'
 type Theme = 'green' | 'blue' | 'brown'
 
 const NAV: { id: Panel; label: string; icon: string }[] = [
@@ -13,6 +13,7 @@ const NAV: { id: Panel; label: string; icon: string }[] = [
   { id: 'puzzles', label: 'Puzzles', icon: '✦' },
   { id: 'learn', label: 'Learn chess', icon: '▤' },
   { id: 'library', label: 'Game library', icon: '▣' },
+  { id: 'review', label: 'Game review', icon: '◷' },
 ]
 const FILES = 'abcdefgh'
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
@@ -149,6 +150,15 @@ function App() {
   const [lessonFeedback, setLessonFeedback] = useState('')
   const [completedLessons, setCompletedLessons] = useState<number[]>([])
   const [libraryQuery, setLibraryQuery] = useState('')
+  const [reviewPly, setReviewPly] = useState(1)
+  const [reviewMarks, setReviewMarks] = useState<Record<string, { classification: string; note: string }>>(() => {
+    try {
+      const data: unknown = JSON.parse(localStorage.getItem('chesslab-review-marks') ?? '{}')
+      return data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, { classification: string; note: string }> : {}
+    } catch {
+      return {}
+    }
+  })
   const [variations, setVariations] = useState<string[]>([])
   const [redoStack, setRedoStack] = useState<string[]>([])
   const [savedGames, setSavedGames] = useState<string[]>(() => {
@@ -364,6 +374,24 @@ function App() {
     } catch {
       setMessage('The game was removed from this session, but browser storage could not be updated.')
     }
+  }
+
+  const reviewKey = `${exportPgn(game)}::${reviewPly}`
+  const activeReviewMark = reviewMarks[reviewKey] ?? { classification: 'Unreviewed', note: '' }
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('chesslab-review-marks', JSON.stringify(reviewMarks))
+    } catch {
+      setMessage('Review notes could not be saved because browser storage is unavailable.')
+    }
+  }, [reviewMarks])
+
+  const updateReviewMark = (field: 'classification' | 'note', value: string) => {
+    setReviewMarks((current) => ({
+      ...current,
+      [reviewKey]: { ...(current[reviewKey] ?? { classification: 'Unreviewed', note: '' }), [field]: value },
+    }))
   }
 
   const stockfish = useStockfish(displayGame.fen(), engineEnabled, engineDepth)
@@ -616,6 +644,29 @@ function App() {
           </aside>
         </div>
         )}
+
+        {activePanel === 'review' && <section className="review-workspace">
+          <div className="review-intro panel">
+            <div className="eyebrow">GAME REVIEW WORKSPACE</div>
+            <h2>Review every move, one position at a time</h2>
+            <p>Load a PGN on the Analysis board, then use this page to navigate the game, inspect the position with Stockfish, and save your own move labels and notes. Labels are personal annotations—not engine verdicts.</p>
+            <div className="review-actions"><button className="button primary" onClick={() => { setActivePanel('analysis'); setShowPgn(true); setPgnInput('') }}>Import a game (PGN)</button><button className="button secondary" onClick={() => { setActivePanel('analysis'); setEngineEnabled(true) }}>Open analysis + start engine</button><span>{history.length} plies in current game · {stockfish.status === 'ready' ? 'Stockfish ready' : 'Engine not ready'}</span></div>
+          </div>
+          <div className="review-columns">
+            <section className="panel review-move-list"><div className="panel-heading"><div><span className="panel-icon">☷</span><strong>Moves</strong></div><span className="move-count">{movePairs.length} PAIRS</span></div>
+              {movePairs.length === 0 ? <div className="variation-empty">No moves yet. Import a PGN or make moves on the Analysis board first.</div> : <div className="review-moves">{movePairs.map((move) => <div className="review-move-row" key={move.number}><span>{move.number}.</span><button className={reviewPly === (move.number - 1) * 2 + 1 ? 'selected' : ''} onClick={() => { const ply = (move.number - 1) * 2 + 1; setReviewPly(ply); jumpToPly(ply) }}>{move.white}</button><button className={reviewPly === move.number * 2 ? 'selected' : ''} disabled={!move.black} onClick={() => { const ply = move.number * 2; setReviewPly(ply); jumpToPly(ply) }}>{move.black ?? '—'}</button></div>)}</div>}
+              <div className="review-list-footer"><button className="button secondary small" onClick={() => { setReviewPly(1); jumpToPly(0) }}>Start</button><button className="button secondary small" disabled={reviewPly >= history.length} onClick={() => { const ply = Math.min(history.length, reviewPly + 1); setReviewPly(ply); jumpToPly(ply) }}>Next ply →</button><button className="button secondary small" onClick={() => setActivePanel('analysis')}>Return to board</button></div>
+            </section>
+            <section className="panel review-note-panel"><div className="panel-heading"><div><span className="panel-icon">✎</span><strong>Move notes</strong></div><span className="move-count">AUTO-SAVED</span></div>
+              <div className="review-note-body"><div className="review-position"><span>Selected ply</span><strong>{reviewPly === 0 ? 'Starting position' : `${Math.ceil(reviewPly / 2)}${reviewPly % 2 ? '.' : '…'} ${history[reviewPly - 1]?.san ?? ''}`}</strong><small>{displayGame.isCheck() ? 'Side to move is in check' : displayGame.isGameOver() ? 'Game over' : `${displayGame.turn() === 'w' ? 'White' : 'Black'} to move`}</small></div>
+                <label htmlFor="review-classification">Your move classification</label><select id="review-classification" value={activeReviewMark.classification} onChange={(event) => updateReviewMark('classification', event.target.value)}><option>Unreviewed</option><option>Brilliant</option><option>Best</option><option>Excellent</option><option>Good</option><option>Inaccuracy</option><option>Mistake</option><option>Blunder</option><option>Book move</option><option>Forced</option></select>
+                <label htmlFor="review-note">What happened? What did you calculate?</label><textarea id="review-note" rows={6} value={activeReviewMark.note} onChange={(event) => updateReviewMark('note', event.target.value)} placeholder="Record the idea, threat you missed, candidate moves, or lesson to remember…" />
+                <p className="review-disclaimer">Notes are saved in this browser. The selected label is your own annotation; ChessLab does not pretend it is an engine-generated accuracy score.</p>
+                <div className="review-engine"><strong>Position analysis</strong><p>{stockfish.status === 'ready' && engineAnalysis.fen === displayGame.fen() ? `Stockfish depth ${engineAnalysis.depth}: ${evaluationText}. ${pvSan ? `Principal variation: ${pvSan}` : 'Waiting for a principal variation.'}` : 'Open the Analysis board and start Stockfish to analyse this selected position.'}</p><button className="button secondary small" onClick={() => { setActivePanel('analysis'); setEngineEnabled(true) }}>Analyse this position</button></div>
+              </div>
+            </section>
+          </div>
+        </section>}
 
         {activePanel === 'library' && <section className="saved-library"><div className="panel-heading"><div><span className="panel-icon">▣</span><strong>Saved games on this device</strong></div><span className="move-count">{savedGames.length} SAVED</span></div><div className="library-controls"><input type="search" aria-label="Search saved games" placeholder="Search saved PGNs…" value={libraryQuery} onChange={(event) => setLibraryQuery(event.target.value)} /></div>{savedGames.length === 0 ? <div className="library-empty"><strong>No saved games yet</strong><p>Open the analysis board, play a game, and select “Save game” to keep it in this browser.</p><button className="button primary" onClick={() => setActivePanel('analysis')}>Open analysis board</button></div> : savedGames.filter((pgn) => pgn.toLowerCase().includes(libraryQuery.toLowerCase())).length === 0 ? <div className="library-empty"><strong>No matching games</strong><p>Try a different search term.</p></div> : savedGames.filter((pgn) => pgn.toLowerCase().includes(libraryQuery.toLowerCase())).map((pgn) => <div className="saved-game" key={pgn}><div><strong>Saved game {savedGames.indexOf(pgn) + 1}</strong><small>{pgn.slice(0, 150).replace(/\s+/g, ' ') || 'Position only'}</small></div><div className="saved-game-actions"><button className="button secondary small" onClick={() => { setPgnInput(pgn); setShowPgn(true); setActivePanel('analysis') }}>Open PGN</button><button className="button secondary small" onClick={() => deleteSavedGame(pgn)}>Delete</button></div></div>)}</section>}
         <footer className="app-footer"><span>♞ ChessLab</span><span>Local-first chess study · No multiplayer</span><span>Built for focused analysis</span></footer>

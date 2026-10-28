@@ -37,15 +37,19 @@ npm run lint
 
 The production build checks TypeScript and bundles the application. The test command exercises core chess rules and included puzzle solutions. Lint checks source code. These checks do not replace testing the app in an actual browser.
 
+## Game review workspace
+
+The Review page adds move-by-move navigation, editable personal classifications, per-move notes saved in browser storage, and a direct link to Stockfish position analysis. These labels are explicitly user-authored; the app does not present them as engine-derived accuracy scores. Review annotations are local to the browser and are keyed to the current PGN and selected ply.
+
 ## Known limits / next milestones
 
-ChessLab is not a finished replacement for every feature on Chess.com and Lichess yet. The current implementation has a small puzzle set and a small lesson set. Important next milestones include:
+ChessLab is still not a complete replacement for every feature on Chess.com and Lichess. The Review page is a working annotation workflow, not a full automated accuracy report. The puzzle and lesson collections remain small, the opening reference is limited, and browser-level end-to-end testing is still needed. Further milestones include:
 
-1. A nested variation tree with named lines, clearer branching controls, and variation renaming.
-2. Game review with engine-based move classifications, candidate lines, and explanations.
+1. A nested variation tree with named lines and clearer branching controls.
+2. Automated game review that analyses every move and compares candidate moves using engine evaluations.
 3. A larger, sourced puzzle library with rating progression and persistent progress.
-4. Opening explorer and opening statistics.
-5. Persistent lesson progress and more complete interactive courses.
+4. A real opening explorer with searchable master-game statistics.
+5. Persistent lesson progress and complete interactive courses.
 6. Browser-level end-to-end tests for board interaction, Stockfish startup, and computer games.
 7. Improved saved-game management, search, filtering, and metadata.
 
